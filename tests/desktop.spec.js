@@ -11,7 +11,9 @@ async function launch(dataDir) {
   const args = process.env.AFTERHOURS_DESKTOP_APP ? [] : [root];
   const desktop = await _electron.launch({executablePath, args: [...args, `--data-dir=${dataDir}`], env});
   try {
-    await desktop.firstWindow();
+    // Backend startup allows 45 seconds; give it time to finish before waiting
+    // for the renderer, including on a cold macOS runner.
+    await desktop.firstWindow({timeout: 60000});
     return desktop;
   } catch (error) {
     try {
