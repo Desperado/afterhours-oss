@@ -133,6 +133,13 @@ test('cold replay preloads initial and later sampled patches before capture and 
     .setInputFiles({name: 'cold.json', mimeType: 'application/json', buffer: Buffer.from(take)});
   await expect(page.locator('#performance-print')).toBeEnabled();
   await page.evaluate(() => {
+    const prepare = AfterhoursVoice.prepare,
+      gate = new Promise(resolve => (window.__releaseVoice = resolve));
+    AfterhoursVoice.prepare = async ctx => {
+      window.__voicePreparing = true;
+      await gate;
+      return prepare(ctx);
+    };
     window.__replayHits = [];
     const hit = FMGrooveAudio.prototype.hit;
     FMGrooveAudio.prototype.hit = function (e, ...args) {
@@ -150,6 +157,11 @@ test('cold replay preloads initial and later sampled patches before capture and 
       await page.waitForTimeout(400);
       await pending.get(id).fallback();
     }
+    await expect.poll(() => page.evaluate(() => !!window.__voicePreparing)).toBe(true);
+    await page.waitForTimeout(400);
+    expect(await page.evaluate(() => AfterhoursAudio.recording)).toBe(false);
+    expect(await page.evaluate(() => __replayHits.length)).toBe(0);
+    await page.evaluate(() => __releaseVoice());
     await page.evaluate(() => __replaying);
     await expect.poll(() => page.evaluate(() => AfterhoursPerformanceStudio.replaying)).toBe(false);
     await expect(page.locator('#performance-status')).toContainText('Edited replay printed');
@@ -176,6 +188,7 @@ test('cold replay preloads initial and later sampled patches before capture and 
     expect(result.second).toBeGreaterThan(0.001);
   } finally {
     for (const route of pending.values()) await route.fallback().catch(() => {});
+    await page.evaluate(() => window.__releaseVoice?.()).catch(() => {});
   }
 });
 

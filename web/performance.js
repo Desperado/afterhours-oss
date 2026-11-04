@@ -1093,6 +1093,9 @@
       await AfterhoursInstruments.prepare([
         {tracks: patches.map(p => p.track).filter(t => t?.machine === 'Instrument')},
       ]);
+      // Synth.on can load the shared voice runtime, even for sampled Groove patches.
+      // Finish that cold load before fixing the first held note's start time.
+      await AfterhoursVoice.prepare(A.context());
       if (replay !== r) return;
       media.pause();
       M.release();
