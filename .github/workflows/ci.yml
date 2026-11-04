@@ -1,0 +1,117 @@
+name: Public CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Lint, unit, DSP and browser tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            .agents/skills/music-analysis/requirements.txt
+            desktop/requirements-build.txt
+            requirements-dev.txt
+      - name: Install Rust tools
+        run: |
+          rustup toolchain install stable --profile minimal --component rustfmt --component clippy --target wasm32-unknown-unknown
+          rustup default stable
+      - name: Install app dependencies
+        run: npm run setup
+      - name: Install test browser
+        run: npx playwright install --with-deps chrome
+      - name: Lint all public source
+        run: npm run lint
+      - name: Build Rust WebAssembly
+        run: npm run dsp
+      - name: Run all public tests
+        # Includes Python, music-analysis, Node, Rust, browser and offline audio suites.
+        run: npm test -- --reporter=line,html
+      - name: Upload browser report
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: public-browser-report
+          path: playwright-report
+          if-no-files-found: ignore
+          retention-days: 7
+
+  macos:
+    name: Public macOS arm64 build and desktop tests
+    needs: tests
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            .agents/skills/music-analysis/requirements.txt
+            desktop/requirements-build.txt
+            requirements-dev.txt
+      - name: Install Rust target
+        run: |
+          test "$(uname -m)" = arm64
+          rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
+          rustup default stable
+      - name: Install app dependencies
+        run: npm run setup
+      - name: Build Rust WebAssembly
+        run: npm run dsp
+      - name: Test desktop development app
+        run: npm run test:desktop
+      - name: Build public app and DMG
+        run: npm run desktop:dist:public
+      - name: Test the packaged public app
+        env:
+          AFTERHOURS_DESKTOP_APP: ${{ github.workspace }}/.context/desktop-dist/public/mac-arm64/AFTERHOURS.app/Contents/MacOS/AFTERHOURS
+        run: npm run test:desktop
+      - name: Prepare public artifacts
+        run: |
+          mkdir -p .context/release
+          git archive --format=zip --output=.context/release/AFTERHOURS-source.zip HEAD
+          ditto -c -k --sequesterRsrc --keepParent .context/desktop-dist/public/mac-arm64/AFTERHOURS.app .context/release/AFTERHOURS-macos-arm64.app.zip
+          cp .context/desktop-dist/public/*.dmg .context/release/
+          cp dsp/target/wasm32-unknown-unknown/release/afterhours_dsp.wasm .context/release/
+          cp web/ladder-wasm.js .context/release/
+          cd .context/release
+          shasum -a 256 ./*.zip ./*.dmg ./*.wasm ./*.js > SHA256SUMS.txt
+      - name: Upload public build artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: AFTERHOURS-public-macos-arm64
+          path: .context/release/
+          if-no-files-found: error
+          retention-days: 14

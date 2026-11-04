@@ -17,6 +17,12 @@ pub struct Ladder {
     state: [f32; 4],
 }
 
+impl Default for Ladder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Ladder {
     pub fn new() -> Self {
         Self { state: [0.0; 4] }

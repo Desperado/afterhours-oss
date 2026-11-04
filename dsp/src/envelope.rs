@@ -20,6 +20,12 @@ pub struct Envelope {
     step: f32,
     gate: bool,
 }
+impl Default for Envelope {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Envelope {
     pub fn new() -> Self {
         Self {

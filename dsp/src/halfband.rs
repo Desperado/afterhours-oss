@@ -104,6 +104,12 @@ pub struct Upsampler {
     history: History,
 }
 
+impl Default for Upsampler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Upsampler {
     pub fn new() -> Self {
         Self {
@@ -130,6 +136,12 @@ pub struct Downsampler {
     odd: History,
 }
 
+impl Default for Downsampler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Downsampler {
     pub fn new() -> Self {
         Self {
@@ -142,7 +154,8 @@ impl Downsampler {
     pub fn process(&mut self, first: f32, second: f32) -> f32 {
         self.even.push(first);
         self.odd.push(second);
-        dot(self.taps, self.even.window()) + 0.5 * self.odd.window()[BRANCH - 1 - (CENTER + 1) / 2]
+        dot(self.taps, self.even.window())
+            + 0.5 * self.odd.window()[BRANCH - 1 - CENTER.div_ceil(2)]
     }
 }
 

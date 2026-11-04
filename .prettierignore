@@ -9,3 +9,5 @@ scripts/ardour/dependencies.lock.json
 *.md
 web/ladder-wasm.js
 dsp/target/
+# Imported instrument maps retain their compact source format.
+web/instruments/**/manifest.json

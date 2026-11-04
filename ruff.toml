@@ -1,2 +1,10 @@
 line-length = 120
 extend-exclude = [".context"]
+
+[lint]
+select = ["E4", "E7", "E9", "F"]
+
+[lint.per-file-ignores]
+# These command-line entry points add the repository root before local imports.
+"desktop/stage_web.py" = ["E402"]
+"scripts/setup-private.py" = ["E402"]

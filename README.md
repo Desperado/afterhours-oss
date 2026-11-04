@@ -1,5 +1,7 @@
 # AFTERHOURS
 
+[Website](https://desperado.github.io/afterhours-oss/) · [Public CI](https://github.com/Desperado/afterhours-oss/actions/workflows/ci.yml)
+
 A local music studio for sequencing songs, playing synths, recording performances and studying recordings. Build sixteen-lane Groove arrangements, play a keyboard or USB MIDI controller, shape the mix, and export projects, MIDI and WAV audio. Listen and AI add waveform playback, loops, local measurements and optional paid musical feedback.
 
 The backend is Python; the interface is plain HTML, CSS and JavaScript. It reuses the existing music-analysis skill and its librosa, NumPy, SoundFile and OpenAI audio pipeline. The modular Rust DSP core compiles to WebAssembly for the audio rendering thread. It supplies the complete Analog voice, the Groove FM machines and Saw, the Ladder, DualVCO and Wavetable voices, and the ladder filter; see [DSP architecture and extension guide](dsp/README.md).
@@ -205,6 +207,7 @@ Install the Python environment described above, then run the integrated suites w
 
 ```sh
 npm ci
+npm run lint
 npm test
 ```
 
@@ -215,6 +218,8 @@ The browser checks use installed Google Chrome. To use another Chromium build, s
 The Node wrapper discovers every top-level `tests/*.test.js` file, including the instrument-loader concurrency, retry and memory-budget checks.
 
 The public suite uses synthetic fixtures for song matching and sampling. Real-library checks skip when the [instrument recordings](web/instruments/README.md#local-installation-and-native-packaging) are absent. Song-specific checks are preserved with the private content archive.
+
+GitHub Actions runs JavaScript syntax checks, Prettier, Ruff, Rust formatting and Clippy, then all public unit, DSP, browser and offline audio tests. The macOS job tests the development app, builds the public Apple Silicon app and DMG, then tests the packaged app. Successful runs provide an `AFTERHOURS-public-macos-arm64` artifact containing the app ZIP, DMG, source ZIP, WebAssembly files and SHA-256 checksums, retained for 14 days. These macOS builds are ad-hoc signed and are not notarized. CI checks out only this public repository and explicitly selects `desktop:dist:public`.
 
 The individual commands below still work on their own:
 
@@ -263,7 +268,7 @@ python3 -m http.server 8766 --bind 127.0.0.1 --directory .context/groove-qa
 
 Open `http://127.0.0.1:8766/tests/groove.html`, click **Run audio checks**, and check for **7 checks passed**.
 
-## License and open-source preparation
+## License
 
 Original AFTERHOURS software and documentation are licensed under [Apache-2.0](LICENSE).
 See [NOTICE](NOTICE), [third-party licenses and media exclusions](THIRD_PARTY.md),
@@ -271,6 +276,6 @@ and [contributing](CONTRIBUTING.md). Fonts, instrument recordings and the Ardour
 patch retain their own terms. Reference songs, reconstructions and uncleared
 artwork are outside the Apache grant.
 
-Public release preparation is tracked in [#14](https://github.com/Desperado/afterhours/issues/14).
-The repository and local desktop builds still contain material requiring a rights
-and distribution review; see [release readiness](docs/open-source-readiness.md).
+The public repository excludes private reference content. Configured local builds
+can include a separately installed private pack; see [content packs](docs/content-packs.md)
+and [release readiness](docs/open-source-readiness.md).

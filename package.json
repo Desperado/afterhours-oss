@@ -6,6 +6,7 @@
   "main": "desktop/main.cjs",
   "author": "AFTERHOURS",
   "scripts": {
+    "lint": "node scripts/lint.cjs && prettier --check . && .context/music-analysis-venv/bin/ruff check --config ruff.toml . && .context/music-analysis-venv/bin/ruff format --config ruff.toml --check . && cargo fmt --manifest-path dsp/Cargo.toml -- --check && cargo clippy --manifest-path dsp/Cargo.toml --all-targets -- -D warnings",
     "test": "playwright test",
     "desktop": "electron .",
     "desktop:backend": "node desktop/build-backend.cjs",
