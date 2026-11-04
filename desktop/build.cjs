@@ -23,6 +23,8 @@ try {
       pack ? 'desktop/private-builder.cjs' : 'electron-builder.cjs',
       '--mac',
       '--arm64',
+      '--publish',
+      'never',
       ...(directory ? ['--dir'] : []),
     ],
     {

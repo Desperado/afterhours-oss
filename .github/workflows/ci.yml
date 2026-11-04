@@ -93,13 +93,29 @@ jobs:
         run: |
           mkdir -p .context/desktop-reports
           node --test --test-reporter=junit --test-reporter-destination=.context/desktop-reports/backend.xml tests/desktop-protocol.test.js
+      - name: Build public app and DMG
+        run: npm run desktop:dist:public
+      - name: Record public build stage on failure
+        if: failure()
+        run: |
+          mkdir -p .context/desktop-reports
+          node - <<'JS'
+          const fs = require('node:fs');
+          const {version} = require('./package.json');
+          const outputs = {
+            backend: '.context/desktop-backend/public/afterhours-server/afterhours-server',
+            app: '.context/desktop-dist/public/mac-arm64/AFTERHOURS.app/Contents/MacOS/AFTERHOURS',
+            dmg: `.context/desktop-dist/public/AFTERHOURS-${version}-arm64.dmg`,
+          };
+          fs.writeFileSync('.context/desktop-reports/build-status.json', JSON.stringify(
+            Object.fromEntries(Object.entries(outputs).map(([name, file]) => [name, fs.existsSync(file)]))
+          ));
+          JS
       - name: Test desktop development app
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: .context/desktop-reports/development
           PLAYWRIGHT_HTML_OPEN: never
         run: npm run test:desktop -- --reporter=line,html
-      - name: Build public app and DMG
-        run: npm run desktop:dist:public
       - name: Test the packaged public app
         env:
           AFTERHOURS_DESKTOP_APP: ${{ github.workspace }}/.context/desktop-dist/public/mac-arm64/AFTERHOURS.app/Contents/MacOS/AFTERHOURS
