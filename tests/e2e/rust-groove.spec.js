@@ -200,16 +200,22 @@ test('windowed offline rendering matches scheduling every hit up front', async (
       engine.dispose();
     }
     let difference = 0,
+      errorEnergy = 0,
       energy = 0;
     for (let i = 0; i < out[0].length; i++) {
-      difference = Math.max(difference, Math.abs(out[0][i] - out[1][i]));
+      const error = out[0][i] - out[1][i];
+      difference = Math.max(difference, Math.abs(error));
+      errorEnergy += error ** 2;
       energy += out[0][i] ** 2;
     }
-    return {hits: hits.length, difference, energy};
+    return {hits: hits.length, difference, energy, errorRatio: Math.sqrt(errorEnergy / energy)};
   });
   expect(result.hits).toBeGreaterThan(100);
   expect(result.energy).toBeGreaterThan(1);
-  expect(result.difference).toBeLessThan(1e-6);
+  // Windowing changes the native graph's Float32 summation order. Bound both
+  // isolated peaks and total error (100 dB below the signal), across platforms.
+  expect(result.difference).toBeLessThan(1e-5);
+  expect(result.errorRatio).toBeLessThan(1e-5);
 });
 
 test('windowed export preserves Pump when kicks interrupt a recovery ramp', async ({page}) => {
