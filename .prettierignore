@@ -1,0 +1,11 @@
+.context/
+desktop-dist/
+node_modules/
+test-results/
+playwright-report/
+package-lock.json
+scripts/ardour/dependencies.lock.json
+*.html
+*.md
+web/ladder-wasm.js
+dsp/target/

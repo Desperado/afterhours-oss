@@ -1,0 +1,211 @@
+diff --git a/libs/ardour/filesystem_paths.cc b/libs/ardour/filesystem_paths.cc
+index 0a9e46640..0707a13c2 100644
+--- a/libs/ardour/filesystem_paths.cc
++++ b/libs/ardour/filesystem_paths.cc
+@@ -59,7 +59,8 @@ user_config_directory_name (int version = -1)
+ 	   product name etc.
+ 	*/
+ 
+-	const string config_dir_name = string_compose ("%1%2", X_(PROGRAM_NAME), version);
++	/* Keep AFTERHOURS control-surface settings separate from stock Ardour. */
++	const string config_dir_name = string_compose ("Afterhours%1%2", X_(PROGRAM_NAME), version);
+ 
+ #if defined (__APPLE__) || defined (PLATFORM_WINDOWS)
+ 	/* Use mixed-case folder name on OS X and Windows */
+diff --git a/libs/surfaces/mcp_http/README.md b/libs/surfaces/mcp_http/README.md
+index 646c5ad1c..05b1d0e7c 100644
+--- a/libs/surfaces/mcp_http/README.md
++++ b/libs/surfaces/mcp_http/README.md
+@@ -26,6 +26,14 @@ This is an experimental surface intended for early real-world testing and feedba
+ 
+ The server applies port changes immediately after committing the setting.
+ 
++### AFTERHOURS fork
++
++This fork binds MCP HTTP only to IPv4 loopback (`127.0.0.1`). Requests must
++have a `127.0.0.1:<port>` or `localhost:<port>` Host, no Origin, and JSON
++content type. Bodies are limited to 2 MiB. Browser controls go through the
++AFTERHOURS local backend; direct browser requests are rejected. Keep this
++experimental control surface disabled until you need local control.
++
+ ## Transport and Naming
+ 
+ - Transport is HTTP (streamable MCP endpoint), not SSE.
+diff --git a/libs/surfaces/mcp_http/local_http_policy.h b/libs/surfaces/mcp_http/local_http_policy.h
+new file mode 100644
+index 000000000..7a5eb7f7a
+--- /dev/null
++++ b/libs/surfaces/mcp_http/local_http_policy.h
+@@ -0,0 +1,25 @@
++/* AFTERHOURS local control policy. SPDX-License-Identifier: GPL-2.0-or-later */
++#ifndef AFTERHOURS_LOCAL_HTTP_POLICY_H
++#define AFTERHOURS_LOCAL_HTTP_POLICY_H
++
++#include <cstdint>
++#include <string>
++
++namespace ArdourMCP {
++
++// The web UI uses its own same-origin backend. Native clients send no Origin.
++inline bool local_request_allowed (const std::string& host, int origin_size, uint16_t port)
++{
++	const std::string suffix = ":" + std::to_string (port);
++	return origin_size == 0 && (host == "127.0.0.1" + suffix || host == "localhost" + suffix);
++}
++
++inline bool json_content_type (const std::string& value)
++{
++	const size_t end = value.find (';');
++	return value.substr (0, end) == "application/json";
++}
++
++static const size_t max_request_bytes = 2 * 1024 * 1024;
++}
++#endif
+diff --git a/libs/surfaces/mcp_http/local_http_policy_test.cc b/libs/surfaces/mcp_http/local_http_policy_test.cc
+new file mode 100644
+index 000000000..a75bc6fa3
+--- /dev/null
++++ b/libs/surfaces/mcp_http/local_http_policy_test.cc
+@@ -0,0 +1,20 @@
++/* SPDX-License-Identifier: GPL-2.0-or-later */
++#include "local_http_policy.h"
++#include <cassert>
++
++int main ()
++{
++	using namespace ArdourMCP;
++	assert (local_request_allowed ("127.0.0.1:4820", 0, 4820));
++	assert (local_request_allowed ("localhost:9000", 0, 9000));
++	assert (!local_request_allowed ("127.0.0.1:4820", 23, 4820));
++	assert (!local_request_allowed ("127.0.0.1:4820", -1, 4820));
++	assert (!local_request_allowed ("evil.example:4820", 0, 4820));
++	assert (!local_request_allowed ("127.0.0.1.evil.example:4820", 0, 4820));
++	assert (!local_request_allowed ("127.0.0.1:4821", 0, 4820));
++	assert (!local_request_allowed ("", 0, 4820));
++	assert (json_content_type ("application/json"));
++	assert (json_content_type ("application/json; charset=utf-8"));
++	assert (!json_content_type ("text/plain"));
++	assert (!json_content_type ("application/json-evil"));
++}
+diff --git a/libs/surfaces/mcp_http/mcp_http_server.cc b/libs/surfaces/mcp_http/mcp_http_server.cc
+index d00c6d8f7..3efdb938a 100644
+--- a/libs/surfaces/mcp_http/mcp_http_server.cc
++++ b/libs/surfaces/mcp_http/mcp_http_server.cc
+@@ -33,6 +33,8 @@
+ #include <thread>
+ #include <vector>
+ 
++#include "local_http_policy.h"
++
+ #include <boost/property_tree/json_parser.hpp>
+ #include <boost/property_tree/ptree.hpp>
+ 
+@@ -3045,6 +3047,7 @@ MCPHttpServer::start ()
+ #endif
+ 
+ 	_info.port      = _port;
++	_info.iface     = "127.0.0.1";
+ 	_info.protocols = _protocols;
+ 	_info.gid       = -1;
+ 	_info.uid       = -1;
+@@ -3144,6 +3147,14 @@ MCPHttpServer::handle_http (struct lws* wsi, ClientContext& ctx)
+ 	ctx.request_body.clear ();
+ 	ctx.response_body.clear ();
+ 
++	char host[256] = {};
++	const int host_len = lws_hdr_copy (wsi, host, sizeof (host), WSI_TOKEN_HOST);
++	const int origin_len = lws_hdr_total_length (wsi, WSI_TOKEN_ORIGIN);
++	// Reject every browser Origin, including oversized headers and "null".
++	if (host_len <= 0 || !ArdourMCP::local_request_allowed (host, origin_len, _port)) {
++		return send_http_status (wsi, 403);
++	}
++
+ 	char        uri[1024];
+ 	std::string path;
+ 
+@@ -3162,6 +3173,10 @@ MCPHttpServer::handle_http (struct lws* wsi, ClientContext& ctx)
+ 		path = uri;
+ 
+ 		if (path == "/mcp") {
++			char content_type[128] = {};
++			if (lws_hdr_copy (wsi, content_type, sizeof (content_type), WSI_TOKEN_HTTP_CONTENT_TYPE) <= 0 || !ArdourMCP::json_content_type (content_type)) {
++				return send_http_status (wsi, 415);
++			}
+ 			ctx.mcp_post = true;
+ 			return 0;
+ 		}
+@@ -3173,12 +3188,17 @@ MCPHttpServer::handle_http (struct lws* wsi, ClientContext& ctx)
+ }
+ 
+ int
+-MCPHttpServer::handle_http_body (struct lws* /*wsi*/, ClientContext& ctx, void* in, size_t len)
++MCPHttpServer::handle_http_body (struct lws* wsi, ClientContext& ctx, void* in, size_t len)
+ {
+ 	if (!ctx.mcp_post) {
+ 		return 0;
+ 	}
+ 
++	if (len > ArdourMCP::max_request_bytes - ctx.request_body.size ()) {
++		ctx.mcp_post = false;
++		ctx.request_body.clear ();
++		return send_http_status (wsi, 413);
++	}
+ 	ctx.request_body.append (static_cast<char*> (in), len);
+ 	return 0;
+ }
+diff --git a/tools/osx_packaging/osx_build b/tools/osx_packaging/osx_build
+index 7d59888df..f8ff10fc2 100755
+--- a/tools/osx_packaging/osx_build
++++ b/tools/osx_packaging/osx_build
+@@ -78,6 +78,15 @@ while [ $# -gt 0 ] ; do
+ 		BUNDLENAME=MixbusVBM${major_version} ;
+ 		X42PLUGINS="$X42PLUGINS x42-testsignal x42-nodelay"
+ 		shift ;;
++	--afterhours)
++		PRODUCT_PKG_DIR=Ardour;
++		APPNAME=Ardour;
++		BUNDLENAME=AfterhoursArdour${major_version};
++		lower_case_appname=ardour;
++		BUNDLE_ID_BASE=dev.afterhours;
++		WITH_HARVID=;
++		WITH_XJADEO=;
++		shift ;;
+ 	--public)
+ 		WITH_HARRISON_LV2=1 ;
+ 		WITH_GMSYNTH=1
+@@ -92,7 +101,8 @@ while [ $# -gt 0 ] ; do
+ 	# specific build flags
+ 	#
+ 
+-	--noharvid) shift ;;
++	--noharvid) WITH_HARVID=; shift ;;
++	--app-only) APP_ONLY=1; shift ;;
+ 	--nostrip) STRIP= ; shift ;;
+ 	--clean) CLEANBUILD=1 ; shift ;;
+ 	--sysdeps) PRINT_SYSDEPS=1; shift ;;
+@@ -939,6 +949,11 @@ if test -n "$CLEANBUILD"; then
+ 	rm -rf $BUILD_ROOT
+ fi
+ 
++if test -n "$APP_ONLY"; then
++	echo "App bundle ready: ${PRODUCT_PKG_DIR}/${APPDIR}"
++	exit 0
++fi
++
+ ##### App Signing ##############################################################
+ 
+ if test $(sw_vers -productVersion | cut -d '.' -f 1) -lt 11 -a $(sw_vers -productVersion | cut -d '.' -f 2) -lt 14 -a $(sw_vers -productVersion | cut -d '.' -f 2) -lt 7; then
+diff --git a/wscript b/wscript
+index 32fb33610..e9d44b0b7 100644
+--- a/wscript
++++ b/wscript
+@@ -1030,6 +1030,8 @@ def configure(conf):
+ 
+     if sys.platform == 'darwin':
+         conf.define ('NEED_INTL', 1)
++        # Recent GLib defines GNU visibility on Darwin; Mach-O has no GCC aliases.
++        conf.define ('DISABLE_VISIBILITY', 1)
+         autowaf.display_msg(conf, 'Will use explicit linkage against libintl in ' + user_gtk_root, 'yes')
+     else:
+         # libintl is part of the system, so use it

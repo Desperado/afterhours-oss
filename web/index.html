@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07090e"><meta name="color-scheme" content="dark"><title>AFTERHOURS</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="/style.css">
+  <link rel="preload" href="/fonts/plex-condensed-600.woff2" as="font" type="font/woff2" crossorigin><link rel="preload" href="/fonts/jetbrains-mono.woff2" as="font" type="font/woff2" crossorigin>
+  <script src="/shell.js" defer></script><script src="/performance-core.js" defer></script><script src="/performance-audio.js" defer></script><script src="/controller-audio.js" defer></script><script src="/performance-state.js" defer></script><script src="/controller.js" defer></script><script src="/effects.js" defer></script><script src="/app.js" defer></script><script src="/daw.js" defer></script><script src="/instrument-catalog.js" defer></script><script src="/groove-core.js" defer></script><script src="/groove-midi.js" defer></script><script src="/groove-presets.js" defer></script><script src="/content-packs.js" defer></script><script src="/groove-visual.js" defer></script><script src="/demo-core.js" defer></script><script src="/ladder.js" defer></script><script src="/voice.js" defer></script><script src="/timbres.js" defer></script><script src="/performance-mixer.js" defer></script><script src="/groove-samples.js" defer></script><script src="/groove-instruments.js" defer></script><script src="/groove-audio.js" defer></script><script src="/beat-grid.js" defer></script><script src="/groove-state.js" defer></script><script src="/groove-editor.js" defer></script><script src="/groove-transport.js" defer></script><script src="/groove-sync.js" defer></script><script src="/groove-export.js" defer></script><script src="/groove.js" defer></script><script src="/synth-audio.js" defer></script><script src="/synth-groove.js" defer></script><script src="/synth-key.js" defer></script><script src="/synth.js" defer></script><script src="/performance-midi.js" defer></script><script src="/performance-library.js" defer></script><script src="/performance.js" defer></script><script src="/groove-demo.js" defer></script>
+</head>
+<body>
+<div class="studio">
+  <header class="strip" role="toolbar" aria-label="Transport">
+    <a class="brand" href="/" aria-label="AFTERHOURS home">after<span>/</span>hours</a>
+    <div class="engines" id="engines" role="radiogroup" aria-label="Active engine">
+      <button role="radio" id="engine-groove" data-engine="groove" title="Transport controls this engine"><i class="dot"></i><b>Groove</b><span class="engine-state">Stopped</span></button>
+      <button role="radio" id="engine-recording" data-engine="recording" tabindex="-1" title="Click to control this engine"><i class="dot"></i><b>Recording</b><span class="engine-state">Idle</span></button>
+      <button role="radio" id="engine-ardour" data-engine="ardour" tabindex="-1" title="Click to control this engine"><i class="dot"></i><b>Ardour</b><span class="engine-state">Offline</span></button>
+    </div>
+    <div class="transport" id="transport" role="group" aria-label="Transport">
+      <button id="transport-start" class="tbtn" aria-label="Return to start"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" x2="5" y1="19" y2="5"/></svg></button>
+      <button id="transport-play" class="tbtn tplay" aria-label="Play or stop" aria-pressed="false"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2.75" stroke-linejoin="round" aria-hidden="true"><polygon points="6 4 19 12 6 20 6 4"/></svg></button>
+      <button id="transport-stop" class="tbtn" aria-label="Stop"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>
+    </div>
+    <div class="readout"><span class="micro-label" id="transport-position-label">Groove · bar.step</span><output id="transport-position">1.01</output></div>
+    <div class="readout"><label class="micro-label" id="transport-tempo-label" for="transport-tempo">BPM</label><input id="transport-tempo" class="readout-input" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" value="93"></div>
+    <input id="transport-tempo-slider" class="tempo-slider" type="range" min="40" max="240" step="1" value="93" aria-label="Groove tempo" title="Groove tempo · 40–240 BPM. Manual changes turn Auto sync off.">
+    <span class="chip" id="chip-separate-clock" title="Groove and Ardour run on separate clocks. They won’t stay in sync." hidden><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Separate clock</span>
+    <span class="spacer"></span>
+    <label class="output-volume" title="Listening level for Groove, Synth and Listen. Recordings and exports keep their mix levels. Ardour uses its own mixer."><span class="micro-label">Output</span><input id="output-volume" class="level-slider" type="range" min="0" max="1" step="0.01" value="1" aria-label="Studio output volume"><output id="output-volume-value" class="mono">100%</output></label>
+    <div class="local" title="Runs on this Mac. Only paid requests leave it."><i></i>Local · 127.0.0.1</div>
+    <button id="help-open" class="help-button" aria-label="Open help sheet">?</button>
+  </header>
+
+  <nav class="rail" aria-label="Workspaces">
+    <button data-ws="groove" id="ws-groove" aria-label="Groove workspace"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="7" height="7" x="3" y="3" rx="1.5"/><rect width="7" height="7" x="14" y="3" rx="1.5"/><rect width="7" height="7" x="14" y="14" rx="1.5"/><rect width="7" height="7" x="3" y="14" rx="1.5"/></svg>Groove</button>
+    <button data-ws="synth" id="ws-synth" aria-label="Synth workspace"><span class="synth-rail-icon" aria-hidden="true">♬</span>Synth</button>
+    <button id="performance-toggle" aria-label="Performance studio" aria-expanded="false" aria-controls="performance-panel"><span class="synth-rail-icon" aria-hidden="true">●</span>Perform</button>
+    <button id="controller-toggle" aria-label="Sound controller" aria-expanded="false" aria-controls="controller-panel"><span class="synth-rail-icon" aria-hidden="true">⌁</span>Control</button>
+    <button data-ws="ardour" id="ws-ardour" aria-label="Ardour workspace"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" aria-hidden="true"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></svg>Ardour</button>
+    <button data-ws="listen" id="ws-listen" aria-label="Listening room"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 13a2 2 0 0 0 2-2V7a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0V4a2 2 0 0 1 4 0v13a2 2 0 0 0 4 0v-4a2 2 0 0 1 2-2"/></svg>Listen</button>
+    <button data-ws="ai" id="ws-ai" aria-label="AI listening"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10a3.5 3.5 0 1 1-7 0"/><path d="M15 8.5a2.5 2.5 0 0 0-5 0v1a2 2 0 1 1 0 4"/></svg>AI</button>
+  </nav>
+
+  <main class="workspaces">
+
+    <section id="controller-panel" class="controller-panel" aria-label="Live sound controller" hidden>
+      <div class="toolbar"><h2 class="ws-title">Sound controller</h2><span class="chip chip-ok">LIVE LAYER</span><span class="spacer"></span><button class="btn btn-ok" id="controller-groove">Play Groove</button><button class="btn" id="controller-bypass" aria-pressed="false">Bypass</button><button class="btn" id="controller-reset">Reset controller</button><button class="btn" id="controller-close" aria-label="Close sound controller">✕</button></div>
+      <p class="hint">Shapes Groove, Synth and recording playback. Tunings affect melodic Groove + Synth voices, including held notes. Drums keep their pitch. Ardour audio is external.</p>
+      <div class="controller-actions"><label>Starting point <select id="controller-preset" aria-label="Controller starting point"></select></label><button class="btn" id="controller-explore">Explore a variation</button><span class="spacer"></span><button class="btn" id="controller-a" aria-pressed="true">Recall A</button><button class="btn" id="controller-save-a">Capture A</button><button class="btn" id="controller-b" aria-pressed="false">Recall B</button><button class="btn" id="controller-save-b">Capture B</button></div>
+      <div class="controller-shape"><div class="controller-xy"><div id="controller-pad" aria-hidden="true"><i></i><span>MOVE ↑<br>TONE →</span></div><label>Tone X <input type="range" id="controller-x" min="0" max="100" step="1" value="100" aria-label="Controller pad tone"></label><label>Movement Y <input type="range" id="controller-y" min="0" max="1" step=".01" value="0" aria-label="Controller pad movement"></label></div><div class="knob-row" id="controller-knobs"></div></div>
+      <div class="controller-tuning"><div class="controller-actions"><label>Root <select id="controller-root" aria-label="Controller root"><option value="0">C</option><option value="1">C♯</option><option value="2">D</option><option value="3">D♯</option><option value="4">E</option><option value="5">F</option><option value="6">F♯</option><option value="7">G</option><option value="8">G♯</option><option value="9">A</option><option value="10">A♯</option><option value="11">B</option></select></label><label>Scale <select id="controller-scale" aria-label="Controller scale"><option value="chromatic">Chromatic · original notes</option><option value="minor">Natural minor</option><option value="dorian">Dorian</option><option value="whole">Whole tone</option><option value="hirajoshi">Hirajoshi pentatonic</option></select></label><label>Tuning <select id="controller-temperament" aria-label="Controller tuning"><option value="equal">12-tone equal</option><option value="just">Just intonation · 5-limit</option><option value="pythagorean">Pythagorean</option><option value="19edo">19-tone equal</option></select></label></div><div class="knob-row" id="controller-tuning-knobs"></div><div class="controller-actions"><button class="btn" id="controller-bend-down" aria-pressed="false">Hold: bend −2</button><button class="btn" id="controller-bend-up" aria-pressed="false">Hold: bend +2</button></div></div>
+      <p class="hint">Drag the XY pad or turn knobs while playing. Capture A/B to compare experiments. Reset returns to the original sound. Controller setups, A/B snapshots and performance settings travel with your project. WAV exports include the current layer; MIDI keeps its original notes.</p>
+    </section>
+
+    <section id="performance-panel" class="controller-panel performance-panel" aria-label="Performance studio" hidden>
+      <div class="toolbar"><h2 class="ws-title">Performance studio</h2><span class="pill">PLAY / CAPTURE / FINISH</span><span class="spacer"></span><button class="btn" id="performance-close" aria-label="Close performance studio">Close</button></div>
+      <div class="performance-actions"><button class="btn" id="performance-undo">Undo</button><button class="btn" id="performance-redo">Redo</button><button class="btn" id="performance-hold" aria-pressed="false">Hold to experiment</button><label>Controller target <select id="performance-target"><option value="all">All engines</option><option value="groove">Groove only</option><option value="synth">Synth only</option><option value="listen">Listen only</option></select></label></div>
+      <div class="performance-actions"><label>Setup name <input id="performance-setup-name" maxlength="40" placeholder="My night sound"></label><button class="btn" id="performance-save-setup">Save setup</button><label>Saved setups <select id="performance-setups" aria-label="Saved controller setups"></select></label><button class="btn" id="performance-recall-setup">Recall</button><button class="btn" id="performance-delete-setup">Delete setup</button></div>
+      <details open><summary>Recordings &amp; parts</summary>
+        <div class="performance-actions performance-capture"><label>Next take name <input id="performance-record-name" maxlength="80" placeholder="Optional · named automatically"></label><button class="btn btn-ok" id="performance-record" aria-pressed="false">● Record take</button><button class="btn" id="performance-stop">Stop take / replay</button><label>Duration <output id="performance-duration">0:00</output></label><output id="performance-meter" aria-label="Master peak and RMS">Peak −∞ · RMS −∞ dBFS</output></div>
+        <output id="performance-status" role="status" aria-live="polite">Ready · record a take or select a saved performance.</output>
+        <p class="hint">Record → Stop → a new take is saved below. Earlier takes stay in your library.</p>
+        <div class="performance-library">
+          <div class="performance-take-list"><label for="performance-takes">Saved performances</label><select id="performance-takes" size="5" aria-describedby="performance-library-hint"><option value="" disabled>No saved performances yet</option></select><p id="performance-library-hint" class="hint">Select a take to listen or work on its parts. Saved on this device.</p></div>
+          <div class="performance-take-editor">
+            <div class="performance-actions"><label>Take name <input id="performance-take-name" maxlength="80" placeholder="Record your first take"></label><button class="btn" id="performance-rename-take">Save name</button><button class="btn" id="performance-delete-take">Delete take…</button></div>
+            <audio id="performance-player" controls aria-label="Recorded performance playback"></audio>
+            <p class="hint" id="performance-audio-hint">Your recording will appear here.</p>
+            <div class="performance-actions"><label>Playback part <select id="performance-parts" aria-label="Playback part"><option value="">Whole take</option></select></label><button class="btn btn-ok" id="performance-play-part">Play take</button><button class="btn" id="performance-stop-player">Stop playback</button><button class="btn" id="performance-loop-part" aria-pressed="false">Loop selected part</button></div>
+            <details><summary>Name or edit parts</summary>
+              <p class="hint">Parts are ranges in this recording. Set their times, or seek in the player and mark the start and end. Select Whole take to add another part.</p>
+              <div class="performance-actions"><label>Part name <input id="performance-part-name" maxlength="60" placeholder="Intro, Chorus, Breakdown…"></label><label>Part start (seconds) <input id="performance-part-start" type="number" min="0" step="0.01"></label><button class="btn" id="performance-mark-start">Mark start here</button><label>Part end (seconds) <input id="performance-part-end" type="number" min="0" step="0.01"></label><button class="btn" id="performance-mark-end">Mark end here</button><button class="btn" id="performance-save-part">Save part</button><button class="btn" id="performance-new-part">New part</button><button class="btn" id="performance-delete-part">Delete part</button></div>
+            </details>
+            <div class="performance-actions"><button class="btn" id="performance-audio">Export take WAV</button><button class="btn" id="performance-export">Export gestures &amp; parts</button><button class="btn" id="performance-import">Import gestures &amp; parts</button><input id="performance-file" type="file" accept=".json,application/json" hidden></div>
+          </div>
+        </div>
+        <details><summary>Gesture replay &amp; editing</summary><div class="performance-actions"><button class="btn" id="performance-replay">Replay gestures</button><button class="btn" id="performance-print">Render replay as new take</button></div><div class="performance-actions"><label>Gesture <select id="performance-events"></select></label><label>Time (seconds) <input id="performance-event-time" type="number" min="0" step="0.01"></label><button class="btn" id="performance-event-move">Move gesture</button><button class="btn" id="performance-event-delete">Delete gesture</button></div><p class="hint">Replay recreates the whole take using Groove + Synth; parts control recorded audio playback. Listen audio stays in the original WAV. Rendering creates a separate take and keeps the original. Keep note-on/off gestures paired.</p></details>
+        <details><summary>Rolling capture &amp; recording details</summary><div class="performance-actions"><button class="btn" id="performance-arm">Arm rolling capture</button><button class="btn" id="performance-last">Save last 60 seconds</button></div><p class="hint">Captures Groove, Synth and Listen audio plus keys and control movements. Five-minute take limit. Export WAV and gestures &amp; parts for backups; imported gesture files need rendering to create audio. Arm capture to keep the last 60 seconds. Ardour audio is separate. The meter shows sample peak and RMS, not LUFS.</p></details>
+      </details>
+      <details open><summary>Eight expressive macros · selected Groove lanes</summary><div class="knob-row" id="performance-macros"></div><div class="performance-actions"><button class="btn" id="performance-target-all">All lanes</button><button class="btn" id="performance-target-drums">Drums</button><button class="btn" id="performance-target-music">Music</button><button class="btn" id="performance-macros-reset">Reset macros</button></div><div class="performance-lanes" id="performance-lanes" role="group" aria-label="Macro target lanes"></div><p class="hint">Weight adds low end; Bite adds saturation and harmonics; Drift varies pitch and tone; Width spreads lanes; Air opens filters and shelves; Tension opens filters and tightens decay; Space feeds shared echo and reverb; Pulse adds rhythmic movement. Original patches stay editable.</p></details>
+      <details open><summary>Eight morphing scenes</summary><div class="performance-scenes" id="performance-scenes"></div><div class="performance-actions"><label>Morph over bars <select id="performance-bars"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></label><button class="btn" id="performance-cancel-scene">Cancel transition</button><output id="performance-scene-status">Capture a scene, then recall it while playing.</output></div><p class="hint">Continuous controller and macro values morph over 1–8 bars. Scale, tuning and root switch on the next bar when Groove plays. Scenes save controller values, macros and target lanes.</p></details>
+      <details><summary>USB MIDI + MIDI Learn</summary><div class="performance-actions"><button class="btn" id="performance-midi-connect">Connect USB MIDI</button><label>Input <select id="performance-midi-input"><option value="*">All MIDI inputs</option></select></label><label>Learn target <select id="performance-midi-target"></select></label><button class="btn" id="performance-midi-learn">Learn</button><button class="btn" id="performance-midi-cancel">Cancel Learn</button><button class="btn" id="performance-midi-clear">Clear mappings</button><button class="btn" id="performance-midi-preset">Generic 8 knobs · CC 20–27</button></div><output id="performance-midi-status" aria-live="polite">Connect a keyboard. Right-click a Controller, Synth, macro or mixer knob to Learn.</output><ul id="performance-midi-mappings"></ul><p class="hint">Velocity, sustain, ±2-semitone pitch wheel, channel pressure and poly aftertouch play Synth. Hardware knobs use pickup: cross the software value to take control. Mappings travel with the project. SysEx is disabled.</p></details>
+      <details><summary>Lane mixer + shared effects</summary><div class="performance-actions"><label>Lane <select id="performance-mixer-lane"></select></label><button class="btn" id="performance-mixer-mute" aria-pressed="false">Mute lane</button><button class="btn" id="performance-mixer-solo" aria-pressed="false">Solo lane</button><label>Drum group <input id="performance-drum-level" class="level-slider" type="range" min="0" max="150" value="100" aria-label="Drum group level"></label><label>Music group <input id="performance-music-level" class="level-slider" type="range" min="0" max="150" value="100" aria-label="Music group level"></label></div><div class="knob-row" id="performance-mixer"></div><div class="performance-meters" id="performance-lane-meters" aria-label="Lane peak meters"></div><p class="hint">Three-band EQ, pan, gain, mute, solo and sends per lane. Delay and reverb share a music return. Mixer and macros are included in Groove WAV and selected-lane stem exports. Stem export is in Groove → Export → Track WAV.</p></details>
+      <details><summary>Modulation playground</summary><div id="performance-mods"></div><p class="hint">Four routes add motion above the saved controller values. LFOs, envelopes and random movement follow tempo; lane amplitude follows its meter. Depth zero disables the effect. Modulation does not write knob automation into your base setup.</p></details>
+    </section>
+
+    <!-- GROOVE -->
+    <section class="ws ws-groove" data-ws-panel="groove" id="fm-groovebox" aria-label="Night machines groovebox">
+      <div class="toolbar">
+        <h2 class="ws-title">Night machines</h2>
+        <div class="slots" id="groove-patterns" role="group" aria-label="Patterns"></div>
+        <button class="btn" id="groove-copy">Copy → B</button>
+        <span class="vsep" aria-hidden="true"></span>
+        <div class="pages" role="group" aria-label="Step page"><span class="micro-label">View steps</span><div id="groove-pages" class="page-buttons"></div></div><button id="groove-follow" class="btn" aria-pressed="true" title="Follow audible steps and song sections. Browsing pages pauses following.">Follow playback</button>
+        <label class="mini-field"><span class="micro-label">Swing</span><input id="groove-swing" aria-label="Groovebox swing" type="range" min="0" max="90" step="1" value="12"><output id="groove-swing-value" class="mono">12%</output></label>
+        <label class="mini-field"><span class="micro-label">Steps</span><input id="groove-length" class="num" aria-label="Pattern steps" type="number" min="1" max="64" step="1" value="32"></label>
+        <span class="spacer"></span>
+        <button class="btn btn-raised mono" id="groove-fill" aria-pressed="false" title="Play fill-only steps">FILL</button>
+        <button class="btn mono lock-toggle" id="groove-lock" aria-pressed="false" title="Lock knob values to the selected step"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" aria-hidden="true"><rect width="16" height="11" x="4" y="11" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>TRIG LOCK</button>
+        <div class="menu">
+          <button class="btn" id="groove-export" aria-haspopup="menu" aria-expanded="false" aria-controls="groove-export-menu">Export ▾</button>
+          <div class="menu-list" id="groove-export-menu" role="menu" hidden>
+            <button role="menuitem" id="groove-wav">Mix WAV</button>
+            <button role="menuitem" id="groove-stem">Track WAV</button>
+            <button role="menuitem" id="groove-song-wav" disabled>Full song WAV</button>
+            <button role="menuitem" id="groove-midi">MIDI</button>
+            <button role="menuitem" id="groove-project">Save project</button>
+            <button role="menuitem" id="groove-import">Open project…</button>
+          </div>
+        </div>
+        <input id="groove-file" type="file" accept=".json,application/json" hidden>
+      </div>
+      <div class="pattern-guide"><span class="micro-label">Loop length</span><div id="groove-lengths" class="button-row" role="group" aria-label="Loop length"></div><span id="groove-pattern-status" class="mono"></span><span class="hint">Patterns = phrases · length = loop · pages = view only</span></div>
+      <section class="track-deck" aria-label="Track presets">
+        <div class="track-picker"><label class="micro-label" for="groove-preset">Song library</label><select id="groove-preset" aria-describedby="groove-preset-description"></select><p class="hint" id="groove-preset-description"></p></div>
+        <div class="track-actions"><button id="demo-toggle" hidden class="btn" aria-expanded="false" aria-controls="demo-panel">Sound demo</button><button class="btn btn-ok" id="groove-load-preset">Load track</button><button class="btn" id="groove-restore" disabled>Restore session</button><button class="btn" id="groove-song" aria-pressed="false" disabled>Song mode</button><button class="btn" id="groove-continuous" aria-pressed="false" title="Repeat the entire arrangement until stopped">Continuous Play</button></div>
+        <div class="track-mix"><label class="mini-field">Space<input id="groove-space" type="range" min="0" max="100" value="0" aria-label="Space"></label><label class="mini-field">Pump<input id="groove-pump" type="range" min="0" max="100" value="0" aria-label="Pump"></label></div>
+        <div class="track-now"><b id="groove-track-title">Your session</b><span class="hint" id="groove-section">Pattern mode · changes on the next bar</span></div>
+        <div class="meter-heading"><label class="micro-label" for="groove-meter-style">Stereo output</label><select id="groove-meter-style" aria-label="Stereo meter style"><option value="vu">Analog VU</option><option value="led" selected>Tape LED</option><option value="digital">Digital peak / RMS</option><option value="ppm">Studio PPM</option><option value="bars">Broadcast bars</option><option value="scope">Stereo scope</option></select><output id="groove-meter-reading" class="mono" aria-live="off">L −∞ · R −∞ dBFS</output></div>
+        <canvas id="groove-visual" role="img" aria-label="Stereo output level: independent left and right channels"></canvas>
+        <div id="groove-overview" class="song-overview" role="group" aria-label="Whole song overview"></div>
+        <div id="groove-arrangement" class="song-sections" role="group" aria-label="Song arrangement"></div>
+      </section>
+      <section id="demo-panel" class="sound-demo" aria-label="Sound demonstration" hidden>
+        <div class="demo-heading"><div><span class="micro-label">AFTERHOURS / SOUND DEMO</span><h3 id="demo-title">An orchestra, then a sound laboratory.</h3></div><div class="demo-heading-actions"><button id="demo-start" class="btn btn-ok">Load &amp; play demo</button><button id="demo-collapse" class="btn" aria-expanded="true" aria-controls="demo-details">Collapse demo</button></div></div>
+        <output id="demo-state" class="mono" role="status" aria-live="polite">READY</output>
+        <progress id="demo-progress" value="0" max="1" aria-label="Current demo chapter progress"></progress>
+        <div id="demo-details" class="demo-details">
+          <p id="demo-description" class="hint"></p>
+          <div id="demo-chapters" class="demo-chapters" role="group" aria-label="Demo chapters"></div>
+          <div class="demo-controls"><button id="demo-previous" class="btn" aria-label="Previous demo chapter">← Previous</button><button id="demo-next" class="btn" aria-label="Next demo chapter">Next →</button><button id="demo-auto" class="btn">Resume tour</button><button id="demo-original" class="btn" aria-pressed="false">Hear original</button><label>Variation <input id="demo-amount" type="range" min="0" max="100" value="100" aria-label="Demo variation"><output id="demo-amount-value">100%</output></label><button id="demo-end" class="btn">End demo</button></div>
+          <output id="demo-reading" class="demo-reading mono" aria-label="Currently audible sound details"></output>
+          <p class="hint">Starts at the content pack’s chosen section. Eight bars per experiment, following the audio clock, then the original finale. Manual choices switch on the next bar. Demo changes are live only; project and WAV exports keep the original arrangement. Loading a demo uses the song library’s session backup.</p>
+        </div>
+      </section>
+      <section class="groove-sync" aria-label="MIDI overlay">
+        <button class="btn" id="groove-open-midi">Overlay MIDI…</button><input id="groove-midi-file" type="file" accept=".mid,.midi,audio/midi" hidden>
+        <span class="hint">Add a four-bar MIDI part to empty lanes. Existing notes stay in place.</span>
+      </section>
+      <dialog id="groove-midi-dialog" aria-labelledby="groove-midi-title">
+        <h3 id="groove-midi-title">Overlay MIDI · four bars</h3>
+        <p class="hint">Into the current pattern, using empty lanes. Notes snap to 16ths; gates are limited to half a beat. Tempo stays unchanged.</p>
+        <div class="field-grid">
+          <label>Part<select id="groove-midi-part"></select></label>
+          <label>Start bar (4/4)<input id="groove-midi-bar" type="number" min="1" max="10000" value="1"></label>
+          <label>Transpose<input id="groove-midi-transpose" type="number" min="-48" max="48" value="0"></label>
+        </div>
+        <label><input id="groove-midi-melodic" type="checkbox"> Treat channel 10 as melodic</label>
+        <p id="groove-midi-result" class="hint" role="status"></p>
+        <button class="btn btn-ok" id="groove-apply-midi">Add to empty lanes</button><button class="btn" id="groove-cancel-midi">Cancel</button>
+      </dialog>
+      <div class="groove-sync"><button class="btn" id="groove-sync" aria-label="Auto sync track" aria-pressed="false" disabled>Auto sync track</button><span class="hint" id="groove-sync-status" role="status">Import a recording in Listen to sync its beat.</span></div>
+      <div class="grid-scroll"><div class="seq" id="groove-grid" role="grid" aria-label="Step sequencer"></div></div>
+      <div class="panels" id="groove-sound-view">
+        <section class="panel" aria-labelledby="groove-macro-title"><div class="panel-head"><h3 id="groove-macro-title">Tone</h3><span class="mono dim">macros</span></div><div class="knob-row" id="groove-macros"></div><p class="hint mono">Drag ↕ · Shift fine · ↑↓ keys</p></section>
+        <section class="panel" aria-label="Voice"><div class="panel-head"><h3>Voice</h3></div><div class="knob-row" id="groove-voice"></div></section>
+        <section class="panel" aria-label="Machine"><div class="panel-head"><h3>Machine</h3></div><div class="field-grid" id="groove-machine"></div></section>
+        <section class="panel" aria-label="LFO"><div class="panel-head"><h3>LFO</h3></div><div class="field-grid" id="groove-lfo"></div></section>
+      </div>
+      <div class="panels panels-lock" id="groove-lock-view" hidden>
+        <section class="panel panel-step" aria-labelledby="groove-trig-title"><div class="panel-head"><h3 id="groove-trig-title">Step 1</h3><span class="mono dim" id="groove-trig-meta"></span></div><div class="knob-row" id="groove-trig"></div><div class="field-grid" id="groove-condition"></div></section>
+        <section class="panel" aria-labelledby="groove-locks-title"><div class="panel-head"><h3 id="groove-locks-title">Locks</h3><span class="chip chip-lock" id="groove-lock-count">0 locked</span><span class="mono dim">Turn a knob to lock</span><span class="spacer"></span><button class="btn" id="groove-clear-locks">Clear locks</button></div><div class="knob-row knob-row-wide" id="groove-locks"></div></section>
+      </div>
+      <!-- Phone performance view: pads, steps and macros only. CSS shows it below 620 px. -->
+      <div class="perform" id="groove-perform" aria-label="Performance view">
+        <div class="perform-patterns" id="perform-patterns" role="group" aria-label="Patterns"></div>
+        <div class="perform-pads" id="perform-pads" role="group" aria-label="Machine pads"></div>
+        <div class="perform-actions"><span class="hint">Tap select · double-tap audition · hold mute</span><button class="btn" id="perform-audition">Audition</button><button class="btn" id="perform-mute" aria-pressed="false">Mute</button></div>
+        <div class="perform-pages" id="perform-pages" role="group" aria-label="Step page"></div>
+        <div class="perform-steps" id="perform-steps" role="group" aria-label="Steps of the selected machine"></div>
+        <section class="panel" aria-labelledby="perform-macro-title"><div class="panel-head"><h3 id="perform-macro-title">Tone</h3><span class="mono dim">macros</span></div><div class="knob-row" id="perform-macros"></div></section>
+      </div>
+    </section>
+
+    <section class="ws ws-synth" data-ws-panel="synth" id="synth-workspace" aria-label="Live synthesizer" hidden>
+      <div class="toolbar"><h2 class="ws-title">After dark synthesizer</h2><span class="chip">8 voices</span><span class="spacer"></span><button class="btn btn-ok" id="synth-groove">Play Groove</button><button class="btn" id="synth-panic">Panic · silence synth</button></div>
+      <section class="panel synth-patch-panel"><div class="panel-head"><h3>Choose a sound</h3><span class="mono dim">Post-punk / disco / 90s</span></div><div id="synth-patches" class="synth-patches" role="group" aria-label="Synth presets"></div><p id="synth-description" class="hint"></p></section>
+      <section class="panel" id="synth-shape-panel"><div class="panel-head"><h3>Shape & effects</h3><span class="hint">Drag knobs · arrow keys for fine control</span></div><div class="knob-row synth-controls" id="synth-controls"></div></section>
+      <section class="panel synth-match" aria-label="Play in the song key"><div class="panel-head"><h3>Play along</h3><button class="btn btn-ok" id="synth-match">Match Groove part</button><label><input type="checkbox" id="synth-follow"> Follow selected part</label><span class="spacer"></span><label>Key <select id="synth-root" aria-label="Synth key"></select></label><label>Scale <select id="synth-scale" aria-label="Synth scale"><option value="chromatic">Chromatic</option><option value="major">Major</option><option value="minor">Minor</option><option value="minorLeading">Minor + leading tone</option></select></label><label><input type="checkbox" id="synth-snap"> Stay in key</label><label><input type="checkbox" id="synth-midi-range"> Shift MIDI to this octave</label></div><p class="hint" id="synth-match-status" role="status">Select a melodic Groove part, then match its instrument, effects, song key and playing range.</p></section>
+      <section class="panel synth-instrument"><div class="panel-head"><h3>Keyboard</h3><button class="btn" id="synth-octave-down" aria-label="Lower synth octave">− octave</button><output class="mono" id="synth-octave"></output><button class="btn" id="synth-octave-up" aria-label="Higher synth octave">+ octave</button><span class="spacer"></span><output class="mono" id="synth-notes" aria-live="polite">Ready</output></div><div class="synth-key-scroll"><div id="synth-keyboard" class="synth-keyboard" role="group" aria-label="Piano keyboard" data-own-keys></div></div><p class="hint">Play with A W S E D F T G Y H U J K O L P ; · Z / X shift octave. Hold several keys for chords. Groove can keep playing underneath.</p></section>
+    </section>
+
+    <!-- ARDOUR -->
+    <section class="ws ws-ardour" data-ws-panel="ardour" aria-label="Ardour session" hidden>
+      <div class="ardour-offline" id="daw-offline">
+        <section class="panel offline-card" aria-labelledby="daw-offline-title">
+          <span class="chip" id="daw-offline-chip"><i class="dot" data-dot="off"></i>Offline</span>
+          <h2 class="ws-title" id="daw-offline-title">Ardour isn’t connected</h2>
+          <ol class="setup-steps"><li><b>1</b>Open the AFTERHOURS Ardour build</li><li><b>2</b>Enable MCP in Preferences</li><li><b>3</b>Open a session, then connect</li></ol>
+          <div class="button-row"><button id="daw-connect" class="btn btn-ok">Connect</button><button class="btn" id="daw-setup-toggle" aria-expanded="false" aria-controls="daw-setup">Setup details ?</button></div>
+          <div id="daw-setup" class="setup-details" hidden><p>Use the AfterhoursArdour9 build. In Preferences → Control Surfaces, enable <b>MCP HTTP Server (Experimental)</b> on port 4820. It only listens on 127.0.0.1.</p><p>Starter session: <b>AFTERHOURS Night Session</b> in your Music folder.</p></div>
+          <p class="error-box" id="daw-error" role="status" hidden></p>
+        </section>
+        <aside class="still-working" aria-label="Still working"><span class="micro-label">Still working</span><ul><li><i></i>Groove</li><li><i></i>Listening room</li><li><i></i>AI listening</li></ul><p class="hint">Mixer appears when connected</p></aside>
+      </div>
+      <div class="ardour-grid" id="daw-session" hidden>
+        <aside class="panel session-card" aria-label="Session">
+          <span class="chip chip-ok" id="daw-badge"><i class="dot" data-dot="ok"></i>Connected</span>
+          <div><span class="micro-label">Session</span><strong id="daw-title" class="session-name"></strong></div>
+          <div class="facts"><div><span class="micro-label">BPM</span><strong id="daw-bpm">—</strong></div><div><span class="micro-label">Routes</span><strong id="daw-routes">—</strong></div></div>
+          <div class="button-row"><button class="btn btn-ok" id="daw-save">Save session</button><button class="btn" id="daw-refresh">Refresh</button></div>
+          <p id="daw-status" class="ws-status" role="status"></p>
+          <span class="spacer"></span><p class="hint">Via MCP · localhost</p>
+        </aside>
+        <section class="panel mixer" aria-label="Mixer"><div class="panel-head"><h3>Mixer</h3><span class="mono dim">gain · dB</span><span class="spacer"></span><span class="hint" id="daw-omitted"></span></div><div id="daw-tracks" class="daw-tracks"></div></section>
+        <section id="daw-bass" class="panel surge" aria-label="Surge XT sound controls" hidden>
+          <div class="panel-head"><h3>Surge XT</h3><span class="spacer"></span><label class="bass-track" hidden><span class="micro-label">Track</span><select id="bass-track"></select></label><span class="mono dim" id="bass-title">Night Bass</span><button id="bass-refresh" class="btn" aria-label="Refresh Surge XT controls">↻</button></div>
+          <div id="bass-routing"></div>
+          <div id="bass-controls" class="knob-row"></div>
+          <p id="bass-status" class="ws-status" role="status">Reading Surge XT…</p>
+          <p class="hint"><span class="lock-glyph">◆</span> Changed from loaded patch · Delete resets · Save session to keep</p>
+        </section>
+      </div>
+    </section>
+
+    <!-- LISTEN -->
+    <section class="ws ws-listen" data-ws-panel="listen" aria-label="Listening room" hidden>
+      <aside class="panel library-panel" aria-label="Library">
+        <div class="panel-head"><h3>Library</h3><span class="mono dim" id="track-count">00</span><span class="spacer"></span><button class="btn" id="import">Import</button></div>
+        <input id="file" type="file" accept=".mp3,.wav,.flac,.ogg,.aiff,.aif" hidden>
+        <div id="library" class="library"></div>
+        <span class="spacer"></span>
+        <button class="btn btn-link" id="export" disabled>Export session</button>
+      </aside>
+      <div class="listen-main">
+        <div id="loading" class="empty-state" role="status">Opening your collection…</div>
+        <div id="studio" class="listen-stack" hidden>
+          <section class="panel player" aria-label="Audio player">
+            <div class="player-head"><h2 class="ws-title" id="title"></h2><span class="mono dim" id="file-meta"></span><span class="spacer"></span><span class="mono time"><strong id="current-time">0:00</strong> / <span id="duration">0:00</span></span></div>
+            <div class="wave-wrap" id="wave-wrap">
+              <svg id="waveform" class="wave-base" viewBox="0 0 1080 150" preserveAspectRatio="none" aria-hidden="true"></svg>
+              <div class="wave-played" id="wave-played" aria-hidden="true"></div>
+              <div class="wave-loop" id="wave-loop" hidden><span>A</span><span>B</span></div>
+              <div class="playhead" id="playhead"></div>
+              <input id="seek" class="wave-seek" type="range" min="0" max="1" value="0" step="0.01" aria-label="Seek recording">
+            </div>
+            <div class="player-controls">
+              <button class="btn mono" id="rewind" aria-label="Back ten seconds">↶ 10 s</button>
+              <button class="tbtn tplay" id="play" aria-label="Play recording" aria-pressed="false">▶</button>
+              <button class="btn mono" id="loop-a" aria-label="Set loop start at playhead">A</button>
+              <button class="btn mono" id="loop-b" aria-label="Set loop end at playhead">B</button>
+              <button class="btn mono loop-chip" id="loop" aria-pressed="false" disabled>No loop</button>
+              <span class="spacer"></span>
+              <label class="mini-field"><span class="micro-label">Speed</span><input id="speed" type="range" min="0.5" max="1.25" step="0.25" value="1" aria-label="Playback speed"><output class="mono" id="speed-value">1.00×</output></label>
+              <label class="mini-field"><span class="micro-label">Vol</span><input id="volume" class="level-slider" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume"></label>
+            </div>
+            <p class="hint" id="player-quality"></p>
+            <audio id="audio" preload="metadata"></audio>
+          </section>
+          <section class="panel fx-rack" aria-label="Live effects">
+            <div class="panel-head"><h3>Live effects</h3><span class="mono dim">on recording</span><span class="spacer"></span><div class="seg presets" role="group" aria-label="Presets"><button data-preset="dark" aria-pressed="false">Dark room</button><button data-preset="echo" aria-pressed="false">Dub echo</button><button data-preset="crush" aria-pressed="false">Dirty tape</button></div><button id="fx-bypass" class="btn" aria-pressed="false">Original</button><button class="btn" id="fx-reset">Reset</button></div>
+            <div class="fx-body">
+              <div class="fx-controls" id="fx-controls"></div>
+              <div class="fx-pad-wrap"><div class="fx-pad" id="fx-pad" tabindex="0" data-own-keys role="group" aria-label="Filter and echo pad. Drag horizontally for filter, vertically for echo. Arrow keys also work."><span class="fx-pad-crosshair" id="fx-dot"></span></div><div class="fx-pad-axes mono"><span>x · filter</span><span>y · echo mix</span></div></div>
+              <div class="fx-meter"><meter id="fx-meter" min="0" max="1" value="0" aria-label="Output signal level"></meter><output class="mono" id="fx-meter-db">−∞</output><span class="micro-label">Out</span></div>
+            </div>
+            <p id="fx-status" class="hint" role="status">Press play. Move anything.</p>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <!-- AI -->
+    <section class="ws ws-ai" data-ws-panel="ai" aria-label="AI listening" hidden>
+      <div class="ai-layout">
+        <div class="ai-main">
+          <div class="toolbar"><div><span class="micro-label" id="ai-eyebrow">Listening to</span><h2 class="ws-title"><span id="ai-title">No recording</span> <span class="mono dim ai-duration" id="ai-duration"></span></h2></div><span class="spacer"></span><span class="chip" id="ai-used" hidden></span><button class="btn" id="ai-new" hidden>New listen</button><span class="key-status"><i class="status-dot" id="key-dot"></i><span id="key-status">Checking key</span></span></div>
+          <div id="ai-empty" class="empty-state">Import a recording in Listen first.</div>
+          <div id="ai-setup" hidden>
+            <div class="mode-cards" role="radiogroup" aria-label="Listening mode">
+              <button role="radio" class="mode-card" data-mode="whole" aria-checked="true"><b>Whole track</b><span class="mono dim">120 s excerpts, overlapping</span><span class="chip chip-paid" data-cost></span></button>
+              <button role="radio" class="mode-card" data-mode="excerpt" aria-checked="false"><b>Selected excerpt</b><span class="mono dim" data-range></span><span class="chip chip-paid" data-cost></span></button>
+              <button role="radio" class="mode-card" data-mode="local" aria-checked="false"><b>Local scan</b><span class="mono dim">Signal stats only</span><span class="chip chip-ok">Free · stays local</span></button>
+            </div>
+            <form id="analysis-form" class="panel analysis-form">
+              <div class="panel-head"><h3>Before you send</h3><span class="chip chip-paid" id="cost-chip">$ Costs money</span></div>
+              <div class="facts facts-3"><div><span class="micro-label">Engine</span><strong id="engine">OpenAI audio</strong></div><div><span class="micro-label">Sends to</span><strong id="destination">api.openai.com</strong></div><div><span class="micro-label">Requests</span><strong id="request-count">—</strong></div></div>
+              <div id="range-fields" class="range-fields" hidden><label class="mini-field"><span class="micro-label">Start s</span><input id="start" class="num" type="number" min="0" value="0" step="0.1" required></label><label class="mini-field"><span class="micro-label">Length s</span><input id="length" class="num" type="number" min="0.25" max="120" value="60" step="0.01" required></label><button class="btn" type="button" id="use-loop">Use A–B loop</button></div>
+              <p class="dim" id="cost-note"></p>
+              <div class="button-row"><button class="btn btn-paid" type="submit" id="analyze"><span>Send</span></button><button class="btn" type="button" id="run-local">Run free scan</button></div>
+              <div id="job-status" class="job-status" role="status" hidden></div>
+            </form>
+          </div>
+          <div id="ai-report" hidden>
+            <div class="metrics" id="metrics"></div>
+            <div class="report-grid">
+              <section class="panel" aria-labelledby="heard-title"><div class="panel-head"><h3 id="heard-title">What it heard</h3><span class="spacer"></span><span class="hint" id="report-meta"></span></div><div id="notes" class="heard"></div><p class="hint">AI opinion · trust your ears</p></section>
+              <section class="panel" aria-labelledby="try-title"><div class="panel-head"><h3 id="try-title">Try next</h3><span class="mono dim" id="try-count"></span></div><div id="experiments" class="experiments"></div></section>
+            </div>
+          </div>
+        </div>
+        <aside class="panel saved-panel" aria-label="Saved sessions"><div class="panel-head"><h3>Saved</h3><span class="mono dim" id="session-count"></span></div><div id="saved" class="saved-list"></div></aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="status-bar"><span id="status-line" class="status-line" data-tone="ok" role="status"><i></i><span id="status-text">Ready</span></span><span class="mono dim">Space play/stop · ? help</span></footer>
+</div>
+
+<dialog id="help-sheet" class="help-sheet" aria-labelledby="help-title">
+  <div class="panel-head"><h2 id="help-title" class="ws-title">Help</h2><span class="spacer"></span><button class="btn" id="help-close" aria-label="Close help">Close</button></div>
+  <dl class="help-list">
+    <dt>Space</dt><dd>Play or stop the active engine</dd>
+    <dt>Engine strip</dt><dd>Click Groove, Recording or Ardour to choose what the transport controls. Switching workspace never changes it.</dd>
+    <dt>Auto sync</dt><dd>In Groove, Auto sync track detects the loaded recording’s beats locally. Press Play to hear both; Groove follows the recording’s seeks, loops and speed. Manual BPM changes unlink them. Estimated beats can be half/double time and do not identify the musical downbeat.</dd>
+    <dt>Separate clock</dt><dd>Engines run independently unless Groove is synced to the recording. Ardour always has its own clock.</dd>
+    <dt>Knobs</dt><dd>Drag up or down · Shift for fine · arrows ±1 · PgUp/PgDn ×10 · Home/End</dd>
+    <dt>Steps</dt><dd>Click toggles · right-click selects · arrows move · Enter toggles · Shift+Enter selects</dd>
+    <dt>TRIG LOCK</dt><dd>Select a step, then turn a knob to override it on that step only. Amber marks a lock.</dd>
+    <dt>Patterns</dt><dd>While playing, a new pattern waits for the bar end.</dd>
+    <dt>$ Paid</dt><dd>Only AI listening leaves this Mac, and it shows the cost before sending.</dd>
+  </dl>
+</dialog>
+</body></html>

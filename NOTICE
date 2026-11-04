@@ -1,0 +1,18 @@
+AFTERHOURS
+Copyright 2026 AFTERHOURS contributors
+
+Original AFTERHOURS software and documentation are licensed under the
+Apache License, Version 2.0. See LICENSE.
+
+Third-party components retain their own licenses and copyright notices.
+See THIRD_PARTY.md, web/fonts/OFL-*.txt, web/instruments/licenses/ and
+scripts/ardour/COPYING. scripts/ardour/afterhours.patch is GPL-2.0-or-later.
+
+The Apache grant does not cover third-party musical compositions,
+recordings, transcriptions, arrangements or visual artwork for which the
+contributors do not hold the necessary rights. Separately supplied private content packs are not granted
+under Apache-2.0. See the exact scope and unresolved release items in
+THIRD_PARTY.md and docs/open-source-readiness.md.
+
+AFTERHOURS is not an Apache Software Foundation project. Product and
+instrument names are used to identify their respective projects.

@@ -1,0 +1,33 @@
+{
+  "name": "afterhours",
+  "version": "0.3.0",
+  "private": true,
+  "description": "AFTERHOURS local music studio",
+  "main": "desktop/main.cjs",
+  "author": "AFTERHOURS",
+  "scripts": {
+    "test": "playwright test",
+    "desktop": "electron .",
+    "desktop:backend": "node desktop/build-backend.cjs",
+    "desktop:pack": "node desktop/build.cjs --dir",
+    "desktop:dist": "node desktop/build.cjs",
+    "test:desktop": "playwright test --config playwright.desktop.config.js",
+    "format": "prettier --write . && .context/music-analysis-venv/bin/ruff format .",
+    "format:check": "prettier --check . && .context/music-analysis-venv/bin/ruff format --check .",
+    "dsp": "node scripts/build-dsp.cjs",
+    "desktop:dist:private": "node desktop/build.cjs --private",
+    "setup": "bash scripts/setup.sh",
+    "setup:private": "python3.11 scripts/setup-private.py",
+    "desktop:public": "electron . --public-content",
+    "desktop:dist:public": "node desktop/build.cjs --public",
+    "desktop:pack:public": "node desktop/build.cjs --public --dir",
+    "test:private": "playwright test --config playwright.private.config.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "electron": "45.1.0",
+    "electron-builder": "26.18.0",
+    "prettier": "3.9.10"
+  },
+  "license": "Apache-2.0"
+}
