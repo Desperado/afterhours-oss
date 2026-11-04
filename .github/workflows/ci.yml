@@ -60,7 +60,6 @@ jobs:
 
   macos:
     name: Public macOS arm64 build and desktop tests
-    needs: tests
     runs-on: macos-15
     timeout-minutes: 45
     env:
@@ -91,13 +90,26 @@ jobs:
       - name: Build Rust WebAssembly
         run: npm run dsp
       - name: Test desktop development app
-        run: npm run test:desktop
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: .context/desktop-reports/development
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npm run test:desktop -- --reporter=line,html
       - name: Build public app and DMG
         run: npm run desktop:dist:public
       - name: Test the packaged public app
         env:
           AFTERHOURS_DESKTOP_APP: ${{ github.workspace }}/.context/desktop-dist/public/mac-arm64/AFTERHOURS.app/Contents/MacOS/AFTERHOURS
-        run: npm run test:desktop
+          PLAYWRIGHT_HTML_OUTPUT_DIR: .context/desktop-reports/packaged
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npm run test:desktop -- --reporter=line,html
+      - name: Upload desktop reports
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: public-desktop-reports
+          path: .context/desktop-reports/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Prepare public artifacts
         run: |
           mkdir -p .context/release
