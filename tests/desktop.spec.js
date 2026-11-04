@@ -9,7 +9,23 @@ async function launch(dataDir) {
   for (const name of ['HOME', 'PATH', 'TMPDIR', 'LANG']) if (process.env[name]) env[name] = process.env[name];
   const executablePath = process.env.AFTERHOURS_DESKTOP_APP || require('electron');
   const args = process.env.AFTERHOURS_DESKTOP_APP ? [] : [root];
-  return _electron.launch({executablePath, args: [...args, `--data-dir=${dataDir}`], env});
+  const desktop = await _electron.launch({executablePath, args: [...args, `--data-dir=${dataDir}`], env});
+  try {
+    await desktop.firstWindow();
+    return desktop;
+  } catch (error) {
+    try {
+      const state = await desktop.evaluate(({app, BrowserWindow}) => ({
+        ready: app.isReady(),
+        windows: BrowserWindow.getAllWindows().length,
+        packaged: app.isPackaged,
+      }));
+      await test.info().attach('desktop-startup-state', {body: JSON.stringify(state), contentType: 'application/json'});
+    } finally {
+      await desktop.close();
+    }
+    throw error;
+  }
 }
 
 function recording() {

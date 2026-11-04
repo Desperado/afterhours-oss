@@ -89,6 +89,10 @@ jobs:
         run: npm run setup
       - name: Build Rust WebAssembly
         run: npm run dsp
+      - name: Test the macOS backend protocol
+        run: |
+          mkdir -p .context/desktop-reports
+          node --test --test-reporter=junit --test-reporter-destination=.context/desktop-reports/backend.xml tests/desktop-protocol.test.js
       - name: Test desktop development app
         env:
           PLAYWRIGHT_HTML_OUTPUT_DIR: .context/desktop-reports/development
