@@ -1,6 +1,6 @@
 # AFTERHOURS
 
-[Website](https://desperado.github.io/afterhours-oss/) · [Public CI](https://github.com/Desperado/afterhours-oss/actions/workflows/ci.yml)
+[Website](https://desperado.github.io/afterhours-oss/) · [Download for macOS](https://github.com/Desperado/afterhours-oss/releases/latest) · [Public CI](https://github.com/Desperado/afterhours-oss/actions/workflows/ci.yml)
 
 A local music studio for sequencing songs, playing synths, recording performances and studying recordings. Build sixteen-lane Groove arrangements, play a keyboard or USB MIDI controller, shape the mix, and export projects, MIDI and WAV audio. Listen and AI add waveform playback, loops, local measurements and optional paid musical feedback.
 
@@ -41,13 +41,15 @@ Sampled instruments need separately installed recordings; a checkout contains th
 
 AFTERHOURS also runs as a standalone Electron app. The Apple Silicon build includes the Python runtime and audio libraries: launching the `.app` does not need a terminal, Python, Node or the development checkout. Groove, live effects and beat sync run locally. Ardour remains a separately installed application.
 
+Download the DMG or app ZIP from [GitHub Releases](https://github.com/Desperado/afterhours-oss/releases/latest). The current binaries support Apple Silicon Macs and are ad-hoc signed, without Apple Developer ID notarization; macOS may block the first launch. The release includes checksums and corresponding third-party sources.
+
 After `npm run setup`, run `npm run desktop` for development. Build the standalone app and a drag-to-Applications disk image with:
 
 ```sh
 npm run desktop:dist
 ```
 
-Configured private builds go to `.context/desktop-dist/private/`; unconfigured checkouts build public content in `.context/desktop-dist/public/`. The app is under `mac-arm64/AFTERHOURS.app` and the DMG is alongside that folder. `npm run desktop:pack` builds only the app. `npm run desktop:dist:public` always builds public content, even when private content is configured. Each workspace has its own output. These local builds are ad-hoc signed, without Apple Developer ID notarization; public distribution needs a Developer ID build and notarization.
+Configured private builds go to `.context/desktop-dist/private/`; unconfigured checkouts build public content in `.context/desktop-dist/public/`. The app is under `mac-arm64/AFTERHOURS.app` and the DMG is alongside that folder. `npm run desktop:pack` builds only the app. `npm run desktop:dist:public` always builds public content, even when private content is configured. Each workspace has its own output. These local builds use the same ad-hoc signing as the public binaries. Developer ID signing and notarization remain a future distribution improvement.
 
 Desktop recordings, reports, caches and browser projects are kept in `~/Library/Application Support/AFTERHOURS/`, independently of the browser version and app bundle. **File → Open Data Folder** opens it. Import recordings through Listen; the build does not embed imported user-data recordings, reports or credentials. Public builds include only the reviewed list in `desktop/web-assets.json`, without local audio. Private builds include the selected pack, its instrument recordings and its app icon, use a separate output folder, and stop if required recordings are missing or checksums differ. See [private build instructions](docs/content-packs.md) and [release readiness](docs/open-source-readiness.md). Export a Groove project in the browser and open that JSON in the desktop app to transfer it. To use a separate profile, launch the executable with `--data-dir=/absolute/path`.
 

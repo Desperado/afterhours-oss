@@ -4,8 +4,11 @@ import os
 root = Path(SPECPATH).parent
 audio = root / '.agents/skills/music-analysis/scripts/audio.py'
 web = Path(os.environ['AFTERHOURS_WEB_STAGE']).resolve(strict=True)
+licenses = (web.parent / 'licenses').resolve(strict=True)
 a = Analysis([str(root / 'desktop/server.py')], pathex=[str(root), str(audio.parent)],
-             binaries=[], datas=[(str(web), 'web'), (str(audio), '.agents/skills/music-analysis/scripts')],
+             binaries=[], datas=[(str(web), 'web'), (str(audio), '.agents/skills/music-analysis/scripts'),
+                                 (str(licenses), 'third-party-licenses'),
+                                 (str(root / 'desktop/vendor-licenses'), 'third-party-licenses/native')],
              hiddenimports=['audio', 'librosa', 'openai'], hookspath=[], hooksconfig={}, runtime_hooks=[],
              excludes=['tkinter', 'matplotlib', 'IPython', 'pytest', 'notebook'], noarchive=False)
 pyz = PYZ(a.pure)

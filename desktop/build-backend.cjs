@@ -25,6 +25,7 @@ function run(argv, options = {}) {
 }
 try {
   run(['desktop/stage_web.py', stage, ...(pack ? ['--content-pack', pack, '--instruments'] : [])]);
+  run(['desktop/licenses.py', path.join(temporary, 'licenses')]);
   run(
     [
       '-m',
