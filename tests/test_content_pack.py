@@ -1,10 +1,13 @@
 import http.client
 import hashlib
 import json
+from copy import deepcopy
 from pathlib import Path
+import subprocess
 import tempfile
 import threading
 import unittest
+from unittest.mock import patch
 
 import app
 from content_pack import load_pack
@@ -19,7 +22,22 @@ class ContentPackTests(unittest.TestCase):
         self.pack.mkdir()
         self.data = {
             "version": 1,
-            "presets": [{"id": "fixture", "project": {"patterns": []}}],
+            "presets": [
+                {
+                    "id": "fixture",
+                    "title": "Fixture",
+                    "project": json.loads(
+                        subprocess.check_output(
+                            [
+                                "node",
+                                "-e",
+                                "process.stdout.write(JSON.stringify(require('./tests/fixtures/song.cjs')()))",
+                            ],
+                            cwd=Path(__file__).resolve().parents[1],
+                        )
+                    ),
+                }
+            ],
             "assets": ["samples/fixture.wav"],
         }
         (self.pack / "samples").mkdir()
@@ -57,6 +75,14 @@ class ContentPackTests(unittest.TestCase):
             load_pack(self.pack)
 
     def test_server_serves_only_selected_pack_assets_and_supports_ranges(self):
+        (self.root / "web/samples").mkdir(parents=True)
+        (self.root / "web/samples/unlisted.wav").write_bytes(b"RIFFprivate")
+        unlisted_instrument = self.root / "web/instruments/fixture" / ("b" * 24 + ".flac")
+        unlisted_instrument.parent.mkdir(parents=True)
+        unlisted_instrument.write_bytes(b"fLaCprivate")
+        root_patch = patch.object(app, "ROOT", self.root)
+        root_patch.start()
+        self.addCleanup(root_patch.stop)
         server = app.make_server(0, self.root / "data", content_pack=self.pack)
         thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
         thread.start()
@@ -73,7 +99,13 @@ class ContentPackTests(unittest.TestCase):
 
             self.assertIn(b"AfterhoursPresets.register", request("/content-packs.js")[1])
             self.assertEqual(request("/samples/fixture.wav", {"Range": "bytes=0-3"}), (206, b"RIFF"))
-            for path in ["/archive.txt", "/pack.json", "/samples/%2e%2e/archive.txt"]:
+            for path in [
+                "/archive.txt",
+                "/pack.json",
+                "/samples/%2e%2e/archive.txt",
+                "/samples/unlisted.wav",
+                "/instruments/fixture/" + unlisted_instrument.name,
+            ]:
                 self.assertEqual(request(path)[0], 404)
         finally:
             server.shutdown()
@@ -119,12 +151,31 @@ class ContentPackTests(unittest.TestCase):
         self.assertIn(b"AfterhoursPresets.register", (private / "content-packs.js").read_bytes())
 
     def test_private_build_refuses_missing_sample_lanes(self):
-        self.data["presets"][0]["project"]["patterns"] = [
-            {"tracks": [{"machine": "Sample", "sample": {"id": "missing"}}]}
-        ]
+        track = self.data["presets"][0]["project"]["patterns"][0]["tracks"][4]
+        track.update({"machine": "Sample", "sample": {"id": "missing"}})
         self.save()
         with self.assertRaisesRegex(ValueError, "samples/missing.wav"):
             stage_web(self.root / "build", content_pack=self.pack)
+
+    def test_rejects_packs_the_renderer_cannot_register_before_serving_or_staging(self):
+        valid = deepcopy(self.data)
+        cases = [
+            {"presets": [{**valid["presets"][0], "id": "neon"}]},
+            {"presets": valid["presets"] * 2},
+            {"presets": [{**valid["presets"][0], "title": None}]},
+            {"presets": [{**valid["presets"][0], "project": {"patterns": []}}]},
+            {"demo": {"preset": "fixture", "label": "Test", "startSection": 900}},
+        ]
+        for index, change in enumerate(cases):
+            with self.subTest(case=index):
+                self.data = {**valid, **change}
+                self.save()
+                with self.assertRaisesRegex(ValueError, "Invalid content preset"):
+                    load_pack(self.pack)
+                with self.assertRaisesRegex(ValueError, "Invalid content preset"):
+                    app.make_server(0, self.root / "data", content_pack=self.pack)
+                with self.assertRaisesRegex(ValueError, "Invalid content preset"):
+                    stage_web(self.root / f"invalid-{index}", content_pack=self.pack)
 
     def test_private_instrument_assets_are_served_and_staged_without_installing_into_public_web(self):
         relative = "instruments/fixture/" + "a" * 24 + ".flac"

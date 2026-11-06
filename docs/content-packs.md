@@ -20,6 +20,7 @@ checkout, and verifies the declared recordings and their SHA-256 checksums.
 The default location is `~/work/afterhours-private/`, beside the app checkout
 at `~/work/afterhours/`.
 Use `--directory /absolute/path` for an existing private checkout outside the app.
+Attaching an existing checkout also checks its GitHub origin and repository privacy.
 No credentials are copied or written into either repository.
 
 The selection is stored in the app repository's local Git metadata, shared across
@@ -73,6 +74,10 @@ Allowed asset paths are `samples/NAME.wav` and
 `instruments/BANK/24-HEX-DIGITS.flac`. Optional `checksums` maps those paths to
 SHA-256 digests. Preset IDs cannot replace built-in presets; `prepend: true`
 places pack presets first while preserving their order.
+Setup, staging and the development server validate presets with the renderer's
+registration code through Node.js, rejecting invalid projects, conflicting IDs or
+invalid demo settings before launch. The bundled app uses the validated script
+and needs no Node.js installation.
 
 Optional `demo: {preset, label, startSection}` enables the sampled-instrument tour.
 A complete private pack includes all recordings referenced by the app's curated
@@ -80,6 +85,7 @@ instrument manifests and all sample lanes. It needs `desktop/icon.png` for priva
 packaging. The server exposes only generated preset JavaScript and listed audio;
 it never exposes the manifest, archive or research. Instrument files can be served
 directly from the private checkout without copying them into the app source tree.
+While a pack is selected, undeclared audio in the app checkout is not served.
 
 Research, archived artwork, old tests and exported full-song audio stay in the
 private repository. The app bundles editable projects, required source recordings

@@ -9,6 +9,28 @@ import local_content
 
 
 class LocalContentTests(unittest.TestCase):
+    def test_attaching_existing_checkout_checks_privacy_before_accepting_content(self):
+        spec = importlib.util.spec_from_file_location(
+            "setup_private", Path(__file__).resolve().parents[1] / "scripts/setup-private.py"
+        )
+        setup = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(setup)
+        for remote in ["https://github.com/fixture/content.git", "git@github.com:fixture/content.git"]:
+            with (
+                self.subTest(remote=remote),
+                tempfile.TemporaryDirectory() as directory,
+                patch.object(setup, "configured_pack", return_value=None),
+                patch.object(setup, "run", side_effect=[remote, "false"]) as run,
+                patch.object(setup, "web_sources") as validate,
+                patch.object(setup, "configure") as configure,
+                patch("sys.argv", ["setup-private.py", "--directory", directory]),
+            ):
+                with self.assertRaisesRegex(ValueError, "must be PRIVATE"):
+                    setup.main()
+                self.assertEqual(run.call_count, 2)
+                validate.assert_not_called()
+                configure.assert_not_called()
+
     def test_public_source_archive_works_without_git(self):
         with (
             tempfile.TemporaryDirectory() as temporary,

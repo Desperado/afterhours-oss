@@ -39,7 +39,7 @@ def main():
         directory = directory.expanduser().resolve()
         if directory.is_relative_to(ROOT):
             raise ValueError("Keep the private checkout outside the app repository.")
-        if args.repo or args.update or not directory.exists():
+        if args.repo or args.directory or args.update or not directory.exists():
             repo = args.repo
             if not repo:
                 remote = run(["git", "-C", str(directory), "remote", "get-url", "origin"])

@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 
 
 def load_pack(directory):
@@ -49,5 +50,25 @@ def load_pack(directory):
             raise ValueError(f"Content checksum mismatch: {name}")
     # The renderer receives editable presets, never private storage metadata.
     presets = {key: pack[key] for key in ("version", "presets", "demo", "prepend") if key in pack}
-    script = ("AfterhoursPresets.register(" + json.dumps(presets, allow_nan=False) + ");\n").encode()
+    payload = json.dumps(presets, allow_nan=False)
+    # Use the renderer's own registration contract before setup, serving or staging.
+    # Bundled apps serve the already validated script and do not need Node.js.
+    try:
+        validation = subprocess.run(
+            [
+                "node",
+                "-e",
+                "require('./web/groove-presets').register(JSON.parse(require('node:fs').readFileSync(0, 'utf8')))",
+            ],
+            cwd=Path(__file__).resolve().parent,
+            input=payload,
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        raise ValueError("Node.js is required to validate a separately supplied content pack.") from None
+    if validation.returncode:
+        raise ValueError("Invalid content preset metadata, projects or demo configuration.")
+    script = ("AfterhoursPresets.register(" + payload + ");\n").encode()
     return script, assets

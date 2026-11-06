@@ -438,12 +438,12 @@ class Handler(BaseHTTPRequestHandler):
             if font and (ROOT / "web/fonts" / font[1]).is_file():
                 return self.serve_file(ROOT / "web/fonts" / font[1])
             sample = re.fullmatch(r"/samples/([a-z0-9-]{1,64}\.wav)", path)
-            if sample and (ROOT / "web/samples" / sample[1]).is_file():
+            if sample and self.server.content_script is None and (ROOT / "web/samples" / sample[1]).is_file():
                 return self.serve_file(ROOT / "web/samples" / sample[1], True)
             instrument = re.fullmatch(r"/instruments/([a-z0-9-]{1,40})/(manifest\.json|[a-f0-9]{24}\.flac)", path)
             if instrument:
                 asset_path = ROOT / "web/instruments" / instrument[1] / instrument[2]
-                if asset_path.is_file():
+                if asset_path.is_file() and (instrument[2] == "manifest.json" or self.server.content_script is None):
                     return self.serve_file(asset_path, instrument[2].endswith(".flac"))
             if path in ("/api/daw", "/api/daw/state"):
                 try:
