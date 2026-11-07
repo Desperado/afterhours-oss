@@ -71,6 +71,39 @@ test('the score melody, tied chorus and sixteenth-note pickup survive event and 
   );
 });
 
+test('harp holds retain their score durations without moving either sixteenth-note pickup', () => {
+  const p = P.create('chervona-ruta');
+  for (const [section, beat, note, duration] of [
+    [0, 4, 74, 2.82],
+    [24, 340, 70, 3.76],
+  ]) {
+    const event = passage(p, section).find(e => e.lane === 11 && e.beat === beat);
+    assert.equal(event.settings.note, note);
+    assert.ok(Math.abs(event.gate - duration) < 1e-9, `harp hold at beat ${beat}`);
+    const midi = M.read(G.midi(p.patterns[section], p.bpm, 0, 1));
+    const harp = midi.parts.find(part => part.name.includes('piano answers'));
+    const exported = harp.notes.find(n => n.note === note && n.beat === 4.25);
+    assert.ok(exported, 'MIDI retains the hold onset after its quarter-beat lead-in');
+    assert.ok(Math.abs(exported.duration - duration) <= 1 / 480, 'MIDI retains the hold duration');
+  }
+  for (const [section, start, beats] of [
+    [2, 32, [1, 1.5, 2, 2.25, 2.5, 3, 3.5]],
+    [11, 152, [8, 9, 9.5, 10, 10.25, 10.5, 11, 11.5]],
+  ]) {
+    const pickup = passage(p, section).filter(e => e.lane === 11 && e.beat >= start + beats[0]);
+    assert.deepEqual(
+      pickup.map(e => e.beat - start),
+      beats,
+    );
+    const midi = M.read(G.midi(p.patterns[section], p.bpm, 0, 1));
+    const harp = midi.parts.find(part => part.name.includes('piano answers'));
+    assert.deepEqual(
+      harp.notes.filter(n => n.beat >= beats[0] + 0.25).map(n => n.beat - 0.25),
+      beats,
+    );
+  }
+});
+
 test('the orchestra plays all sixteen lanes within recorded ranges and leaves a quiet final hold', () => {
   const p = P.create('chervona-ruta'),
     instruments = new Set();

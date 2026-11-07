@@ -195,6 +195,8 @@
     });
     function section(name, first, last, texture) {
       const bars = last - first + 1,
+        // Only these pickups need sixteenths; the slower grid preserves long harp holds.
+        answerRate = [8, 40].some(bar => bar >= first && bar <= last) ? 1 : 0.5,
         pattern = {length: bars * 16, tracks: []};
       pattern.tracks = lanes.map(([name, instrument, volume, pan], lane) => ({
         ...templates[lane],
@@ -204,8 +206,8 @@
         volume,
         pan,
         cutoff: 16000,
-        rate: lane === 11 ? 1 : 0.5,
-        length: bars * (lane === 11 ? 16 : 8),
+        rate: lane === 11 ? answerRate : 0.5,
+        length: bars * 16 * (lane === 11 ? answerRate : 0.5),
         steps: Array.from({length: 64}, G.step),
       }));
       const t = pattern.tracks,
