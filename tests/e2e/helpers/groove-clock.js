@@ -38,6 +38,9 @@ async function clock(page) {
         __clock.cancelled.push(tick);
         __clock.events = __clock.events.filter(e => e.tick < tick);
       }
+      stopLane(lane) {
+        __clock.events = __clock.events.filter(e => e.lane !== lane);
+      }
       stop() {
         __clock.stops++;
         __clock.events = [];

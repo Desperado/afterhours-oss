@@ -73,6 +73,27 @@ test('guide respects section lane masks and queued section changes', async ({pag
   await expect(page.locator('#groove-bass-notes')).toHaveText('E1');
 });
 
+for (const action of ['mute', 'solo'])
+  test(`lane ${action} clears held guide notes permanently when their voices stop`, async ({page}) => {
+    await setup(page);
+    await page.locator('#groove-playalong-toggle').click();
+    await page.evaluate(() => AfterhoursGrooveLive.play());
+    await advance(page, 0.35);
+    await expect(page.locator('#groove-guitar-chord')).toHaveText('Cm7');
+    const control = page
+      .locator('#groove-grid .track-head')
+      .nth(action === 'mute' ? 5 : 4)
+      .getByRole('button', {name: action === 'mute' ? 'Mute Chord' : 'Solo Tone', exact: true});
+    await control.click();
+    expect(await page.evaluate(() => __clock.events.some(e => e.lane === 5))).toBe(false);
+    await expect(page.locator('#groove-guitar-chord')).toHaveText('Rest');
+    await control.click();
+    await expect(page.locator('#groove-guitar-chord')).toHaveText('Rest');
+    // The original long gate is still open. Only a new attack may restore it.
+    await advance(page, 0.7);
+    await expect(page.locator('#groove-guitar-chord')).toHaveText('Rest');
+  });
+
 test('auto harmony groups split chord parts without adding the melody and follows the music fader', async ({page}) => {
   await setup(page);
   await page.evaluate(() => {

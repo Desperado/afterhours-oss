@@ -141,3 +141,49 @@ test('selected content pack enables the tour, loads its preset and preserves the
   await page.locator('#groove-restore').click();
   expect(await page.evaluate(() => AfterhoursGrooveApp.S.data.title)).toBe(previous);
 });
+
+test('hidden tour alternates the Space mixer and restores the original mix at the finale', async ({page}) => {
+  const project = require('../fixtures/song.cjs')();
+  project.bpm = 120;
+  for (const pattern of project.patterns)
+    for (const track of pattern.tracks) if (track.machine === 'Analog') track.machine = 'Tone';
+  project.arrangement = Array.from({length: 3}, () => ({...project.arrangement[0], bars: 32}));
+  project.performance.mixer.lanes[4].reverb = 0.15;
+  project.performance.mixer.lanes[4].delay = 0.08;
+  const pack = {
+    version: 1,
+    presets: [{id: 'tour-test', title: project.title, project}],
+    demo: {preset: 'tour-test', label: 'Fixture tour', startSection: 0},
+  };
+  await page.route('**/content-packs.js', route =>
+    route.fulfill({
+      contentType: 'text/javascript',
+      body: `AfterhoursPresets.register(${JSON.stringify(pack)});`,
+    }),
+  );
+  await page.reload();
+  await clock(page);
+  await page.evaluate(() => {
+    FMGrooveAudio.prototype.setPerformance = function (state) {
+      this.performance = structuredClone(state);
+    };
+    Object.defineProperty(document, 'hidden', {configurable: true, get: () => true});
+  });
+  await page.locator('#demo-toggle').click();
+  await page.locator('#demo-start').click();
+  // The automatic tour enters Space at beat 224, then alternates every 8 beats.
+  expect(await page.evaluate(() => AfterhoursGrooveApp.S.running)).toBe(true);
+  await page.evaluate(() => __clock.engine.setPerformance(AfterhoursPerformance.snapshot()));
+  const mix = () => page.evaluate(() => __clock.engine.performance.mixer.lanes[4]);
+  await advance(page, 112.75);
+  expect(await mix()).toMatchObject({reverb: 0, delay: 0});
+  await advance(page, 116.75);
+  expect(await mix()).toMatchObject({reverb: 0.65, delay: 0.28});
+  await advance(page, 120.75);
+  expect(await mix()).toMatchObject({reverb: 0, delay: 0});
+  await advance(page, 124.75);
+  expect(await mix()).toMatchObject({reverb: 0.65, delay: 0.28});
+  await advance(page, 128.75);
+  expect(await mix()).toMatchObject({reverb: 0.15, delay: 0.08});
+  expect(await page.evaluate(() => AfterhoursGrooveApp.S.running)).toBe(true);
+});

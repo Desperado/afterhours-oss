@@ -54,6 +54,11 @@
       status(e.message, 'err');
     }
   }
+  function stopLane(lane) {
+    S.engine?.stopLane(lane);
+    // Cancelled voices cannot become audible again when a lane is unmuted.
+    S.hits = S.hits.filter(h => h.lane !== lane);
+  }
   function stop(
     message = 'Groove stopped',
     pauseTrack = true,
@@ -278,6 +283,7 @@
       }
       while (S.visuals.length > 1 && S.visuals[1].time <= now) S.visuals.shift();
       S.hits = S.hits.filter(h => h.end > now || h.time > now - 0.5);
+      window.AfterhoursDemo?.update();
       scheduleRunning();
     } catch (error) {
       stop(error.message);
@@ -386,6 +392,7 @@
     audibleFrame,
     cancelPendingWrap,
     auditionLane,
+    stopLane,
     stop,
     play,
     restart,
