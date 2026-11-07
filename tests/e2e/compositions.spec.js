@@ -87,6 +87,20 @@ test('preset auditions preserve the original session across reloads and restore 
   await expect(page.locator('#groove-restore')).toBeDisabled();
 });
 
+test('the public orchestra preset loads all score sections and survives reloading', async ({page}) => {
+  await open(page);
+  await page.locator('#groove-preset').selectOption('chervona-ruta');
+  await page.locator('#groove-load-preset').click();
+  await expect(page.locator('#groove-track-title')).toHaveText('Червона рута · Orchestra');
+  await expect(page.locator('#groove-arrangement button')).toHaveCount(25);
+  await expect(page.locator('#groove-arrangement button').last()).toContainText('G minor · final hold');
+  await page.reload();
+  const project = await page.evaluate(() => AfterhoursGrooveApp.S.data);
+  expect(project.arrangement.reduce((sum, s) => sum + s.bars, 0)).toBe(86);
+  expect(project.patterns[8].tracks.every(t => t.machine === 'Instrument')).toBe(true);
+  expect(project.tonality).toEqual({root: 7, scale: 'minor'});
+});
+
 test('song mode follows section lanes and finishes on its audio clock', async ({page}) => {
   const p = fixture();
   p.arrangement = [

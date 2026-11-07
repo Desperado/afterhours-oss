@@ -223,7 +223,9 @@ The browser checks use installed Google Chrome. To use another Chromium build, s
 
 The Node wrapper discovers every top-level `tests/*.test.js` file, including the instrument-loader concurrency, retry and memory-budget checks.
 
-The public suite uses synthetic fixtures for song matching and sampling. Real-library checks skip when the [instrument recordings](web/instruments/README.md#local-installation-and-native-packaging) are absent. Song-specific checks are preserved with the private content archive.
+The public library also includes [Червона рута · Orchestra](docs/chervona-ruta.md), a 16-lane instrumental adaptation credited to Volodymyr Ivasiuk. It uses separately installed orchestral recordings.
+
+The public suite uses synthetic fixtures for song matching and sampling. Real-library checks skip when the [instrument recordings](web/instruments/README.md#local-installation-and-native-packaging) are absent. Checks for separately supplied private songs remain with the private content archive.
 
 GitHub Actions runs JavaScript syntax checks, Prettier, Ruff, Rust formatting and Clippy, then all public unit, DSP, browser and offline audio tests. The macOS job tests the development app, builds the public Apple Silicon app and DMG, then tests the packaged app. Successful runs provide an `AFTERHOURS-public-macos-arm64` artifact containing the app ZIP, DMG, source ZIP, WebAssembly files and SHA-256 checksums, retained for 14 days. These macOS builds are ad-hoc signed and are not notarized. CI checks out only this public repository and explicitly selects `desktop:dist:public`.
 

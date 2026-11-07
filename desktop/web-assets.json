@@ -1,6 +1,7 @@
 [
   "app.js",
   "beat-grid.js",
+  "chervona-ruta.js",
   "content-packs.js",
   "controller-audio.js",
   "controller.js",
