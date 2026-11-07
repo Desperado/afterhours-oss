@@ -34,7 +34,15 @@ to other instruments or downloads without checking their own licenses.
 
 ## Musical works and artwork outside the Apache grant
 
-Reference songs, reconstructions, transcriptions, exported recordings and track
+The public catalog includes **Червона рута · Orchestra**, an instrumental
+adaptation of the user-supplied voice/piano score of **Червона рута**, music and
+lyrics by **Volodymyr Ivasiuk**. Its musical material in `web/chervona-ruta.js`
+is excluded from the Apache-2.0 grant on the application code. Inclusion is not
+a claim that the composition is public domain or a grant of rights in the
+underlying work. The scans and recordings are not bundled. See the
+[arrangement notes](docs/chervona-ruta.md) for the source form and instrumentation.
+
+Other reference songs, reconstructions, transcriptions, exported recordings and track
 artwork are kept in a separate private content repository. They are absent from
 the public source snapshot and default build. Selecting a private content pack
 explicitly adds its presets and listed recordings to a private build; it does
