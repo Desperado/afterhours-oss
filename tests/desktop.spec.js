@@ -434,3 +434,36 @@ test('packaged keyboard matches a Groove instrument and plays it after restartin
     await fs.rm(dataDir, {recursive: true, force: true});
   }
 });
+
+test('Groove keeps scheduling on the audio clock while the desktop is minimized', async () => {
+  const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'afterhours background '));
+  let desktop;
+  try {
+    desktop = await launch(dataDir);
+    const page = await desktop.firstWindow();
+    await ready(page);
+    await page.locator('#ws-groove').click();
+    const before = await page.evaluate(async () => {
+      const {S, transport} = AfterhoursGrooveApp;
+      S.songMode = false;
+      await transport.play();
+      return {time: S.engine.context.currentTime, tick: S.tick};
+    });
+    await desktop.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].minimize());
+    // Use the main process clock so renderer throttling cannot make the test pass late.
+    await desktop.evaluate(() => new Promise(resolve => setTimeout(resolve, 3500)));
+    const after = await page.evaluate(() => {
+      const {S} = AfterhoursGrooveApp;
+      return {time: S.engine.context.currentTime, tick: S.tick, running: S.running, state: S.engine.context.state};
+    });
+    expect(after.running).toBe(true);
+    expect(after.state).toBe('running');
+    expect(after.time - before.time).toBeGreaterThan(3);
+    expect(after.tick - before.tick).toBeGreaterThan(25);
+    await desktop.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].restore());
+    await page.evaluate(() => AfterhoursGrooveApp.transport.stop());
+  } finally {
+    if (desktop) await desktop.close();
+    await fs.rm(dataDir, {recursive: true, force: true});
+  }
+});
