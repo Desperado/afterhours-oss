@@ -1,7 +1,9 @@
-/* Original demo arrangements and optional, separately supplied content packs. */
+/* Built-in arrangements and optional, separately supplied content packs. */
 'use strict';
 (function (root) {
   const G = typeof module !== 'undefined' && module.exports ? require('./groove-core') : root.AfterhoursGroove;
+  const Ruta =
+    typeof module !== 'undefined' && module.exports ? require('./chervona-ruta') : root.AfterhoursChervonaRuta;
   const all = [0, 1, 2, 3, 4, 5];
   const catalog = [
     {
@@ -1273,6 +1275,7 @@
     ];
     return G.validate(p);
   }
+  catalog.push(Ruta.metadata);
   const packed = new Map();
   function register(pack) {
     if (pack?.version !== 1 || !Array.isArray(pack.presets) || !pack.presets.length || pack.presets.length > 64)
@@ -1322,6 +1325,7 @@
   }
   function create(id) {
     if (packed.has(id)) return JSON.parse(JSON.stringify(packed.get(id)));
+    if (id === Ruta.metadata.id) return Ruta.create();
     const c = catalog.find(p => p.id === id);
     if (!c) throw new Error('Unknown track preset');
     if (['letters', 'glass', 'satellite'].includes(id)) return synthpop(c);
