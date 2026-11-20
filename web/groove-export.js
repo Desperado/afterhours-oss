@@ -227,12 +227,12 @@
     const file = $g('file').files[0];
     if (!file) return;
     try {
-      // Larger song banks can contain up to 32 independently editable phrases.
+      // Larger song banks can contain up to 64 independently editable phrases.
       if (file.size > 8 * 1024 * 1024) throw new Error('Project limit is 8 MiB');
       const imported = G.validate(JSON.parse(await file.text()));
       transport.stop();
       recordingSync.unlink();
-      S.songMode = false;
+      S.songMode = !!imported.arrangement?.length;
       S.songStart = S.songOffset = 0;
       S.data = imported;
       AfterhoursPerformance.load(S.data.performance);
@@ -314,7 +314,10 @@
       'audio/midi',
       `afterhours-${LETTERS[S.data.active]}-${S.data.bpm}bpm.mid`,
     );
-    status(`MIDI exported · ${pattern().tracks.length} tracks`);
+    const bent = pattern().tracks.some(t => t.steps.some(s => s.on && s.bend));
+    status(
+      `MIDI exported · ${pattern().tracks.length} tracks${bent ? ' · pitch bends omitted; use WAV to preserve them' : ''}`,
+    );
   });
   $g('wav').addEventListener('click', () => exportWav());
   $g('stem').addEventListener('click', () => exportWav(S.selected));

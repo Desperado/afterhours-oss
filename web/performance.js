@@ -251,6 +251,7 @@
     low: ['Low EQ', -18, 18, 0.5],
     mid: ['Mid EQ', -18, 18, 0.5],
     high: ['High EQ', -18, 18, 0.5],
+    drive: ['Drive', 0, 1, 0.01],
     delay: ['Delay send', 0, 1, 0.01],
     reverb: ['Reverb send', 0, 1, 0.01],
   };
@@ -263,6 +264,8 @@
         label: `Lane ${i + 1} ${name}`,
         min,
         max,
+        format: value =>
+          ['low', 'mid', 'high'].includes(key) ? `${value.toFixed(1)} dB` : `${Math.round(value * 100)}%`,
         get: () => P.snapshot().mixer.lanes[i][key],
         set: value =>
           store.update(s => {
@@ -371,12 +374,13 @@
   }
   let midiOptions = '';
   function refreshTargets() {
-    const signature = [...P.targets.keys()].join('|');
+    const targets = [...P.targets, ...M.targets()];
+    const signature = targets.map(([id]) => id).join('|');
     if (signature === midiOptions) return;
     midiOptions = signature;
     const old = $('midi-target').value;
-    $('midi-target').replaceChildren(...[...P.targets].map(([id, t]) => option(id, t.label)));
-    if (P.targets.has(old)) $('midi-target').value = old;
+    $('midi-target').replaceChildren(...targets.map(([id, t]) => option(id, t.label)));
+    if (targets.some(([id]) => id === old)) $('midi-target').value = old;
   }
   window.addEventListener('afterhours:midilearn', e => {
     open(true);
@@ -388,9 +392,7 @@
     'click',
     attempt(() => M.connect()),
   );
-  $('midi-learn').addEventListener('click', () =>
-    window.dispatchEvent(new CustomEvent('afterhours:midilearn', {detail: $('midi-target').value})),
-  );
+  $('midi-learn').addEventListener('click', () => M.learn([$('midi-target').value], $('midi-mode').value));
   $('midi-cancel').addEventListener('click', () => M.cancel());
   $('midi-input').addEventListener('change', () => M.select($('midi-input').value));
   $('midi-clear').addEventListener('click', () =>
@@ -447,7 +449,16 @@
       $('midi-mappings').replaceChildren(
         ...s.mappings.map(m => {
           const item = document.createElement('li');
-          item.textContent = `${m.device} · ch ${m.channel + 1} CC ${m.cc} → ${P.targets.get(m.target)?.label || m.target}`;
+          const name =
+            P.targets.get(m.target)?.label || M.targets().find(([id]) => id === m.target)?.[1].label || m.target;
+          item.textContent = `${m.device} · ch ${m.channel + 1} ${m.type} ${m.type === 'cc' ? m.cc : m.number} → ${name}${m.type === 'cc' ? ' · ' + m.mode : ''}`;
+          item.append(
+            button('Remove', () =>
+              store.update(s => {
+                s.mappings = s.mappings.filter(n => JSON.stringify(n) !== JSON.stringify(m));
+              }, 'midi-clear'),
+            ),
+          );
           return item;
         }),
       );
@@ -875,14 +886,19 @@
     }),
   );
   $('record').addEventListener('click', attempt(startRecording));
+  async function stopTake() {
+    if (recording) await finishRecording();
+    if (replaying) await stopReplay();
+  }
   $('stop').addEventListener(
     'click',
     attempt(async () => {
-      if (recording) await finishRecording();
-      if (replaying) await stopReplay();
+      await stopTake();
       $('player').pause();
     }),
   );
+  // The main transport Stop must end a take too; the take controls live in a collapsed panel.
+  document.getElementById('transport-stop').addEventListener('click', attempt(stopTake));
   window.addEventListener('afterhours:recordlimit', () => finishRecording().catch(e => message(e.message, true)));
   const takeFilename = () =>
     (take?.name || 'afterhours-performance')
@@ -1024,6 +1040,9 @@
         AfterhoursSynth.off(v.id);
         r.notes.delete(v.id);
         break;
+      case 'laneHit':
+        await AfterhoursGrooveLive.audition(v.lane, v.velocity);
+        break;
       case 'bend':
         C.change({bend: v});
         break;
@@ -1049,6 +1068,9 @@
         break;
       case 'synthControl':
         AfterhoursSynth.control(v.key, v.value);
+        break;
+      case 'trackControl':
+        P.targets.get('mpk.track.' + v.path)?.set(v.value, {pattern: v.pattern, lane: v.lane, replay: true});
         break;
       case 'expression':
         for (const n of AfterhoursSynth.held())
@@ -1275,6 +1297,135 @@
   window.addEventListener('pagehide', () => {
     C.overlay({});
     if (audioURL) URL.revokeObjectURL(audioURL);
+  });
+  let taps = [];
+  window.addEventListener('afterhours:midiaction', e => {
+    if (replaying) return;
+    const {target, velocity, direction} = e.detail;
+    const run = async () => {
+      if (target.startsWith('mpk.select-lane.')) {
+        AfterhoursGrooveLive.selectLane(Number(target.split('.').at(-1)));
+        return;
+      }
+      if (target.startsWith('mpk.pad.')) {
+        const lane = Number(target.split('.').at(-1)),
+          {padMode, pads} = P.snapshot().midi;
+        switch (padMode) {
+          case 'beat':
+            // Write before the async audition so the hit lands on the step the player heard.
+            AfterhoursGrooveLive.recordHit(pads[lane], velocity);
+            await AfterhoursGrooveLive.audition(pads[lane], velocity);
+            break;
+          case 'drums':
+            await AfterhoursGrooveLive.audition(pads[lane], velocity);
+            break;
+          case 'scenes':
+            if (lane < 8) document.querySelector(`[aria-label="Recall scene ${lane + 1}"]`).click();
+            else
+              store.update(s => {
+                s.mixer.lanes[lane - 8].mute = !s.mixer.lanes[lane - 8].mute;
+              }, 'midi-mute');
+            break;
+          case 'mute':
+            store.update(s => {
+              s.mixer.lanes[lane].mute = !s.mixer.lanes[lane].mute;
+            }, 'midi-mute');
+            break;
+        }
+        return;
+      }
+      if (target.startsWith('action.scene.')) {
+        document.querySelector(`[aria-label="Recall scene ${Number(target.split('.').at(-1)) + 1}"]`).click();
+        return;
+      }
+      switch (target) {
+        case 'mpk.instrument':
+          $('midi-status').textContent = 'Synth · ' + AfterhoursSynth.stepPreset(direction);
+          break;
+        case 'action.knob-bank-prev':
+        case 'action.knob-bank':
+        case 'action.pad-mode': {
+          const key = target === 'action.pad-mode' ? 'padMode' : 'knobBank';
+          const choices =
+            key === 'knobBank'
+              ? AfterhoursMPKControls.banks.map(([id]) => id)
+              : ['drums', 'beat', 'scenes', 'mute', 'notes'];
+          store.update(s => {
+            s.midi[key] =
+              choices[
+                (choices.indexOf(s.midi[key]) + (target === 'action.knob-bank-prev' ? choices.length - 1 : 1)) %
+                  choices.length
+              ];
+          }, 'midi-profile');
+          break;
+        }
+        case 'action.continue':
+          await AfterhoursGrooveLive.continue();
+          break;
+        case 'action.play':
+          if (!AfterhoursGrooveLive.clock().running) {
+            AfterhoursSongWorkflow.loadPending();
+            await AfterhoursGrooveLive.play();
+          }
+          break;
+        case 'action.stop':
+          AfterhoursGrooveLive.stop();
+          await stopTake();
+          break;
+        case 'action.play-stop':
+          // Stop also ends a take, as in a DAW; otherwise recording would continue silently.
+          if (AfterhoursGrooveLive.clock().running) {
+            AfterhoursGrooveLive.stop();
+            await stopTake();
+          } else {
+            AfterhoursSongWorkflow.loadPending();
+            await AfterhoursGrooveLive.play();
+          }
+          break;
+        case 'action.rewind':
+          S.getEngine('groove').start();
+          break;
+        case 'action.record':
+          if (recording) await finishRecording();
+          else await startRecording();
+          break;
+        case 'action.undo':
+          if (!window.AfterhoursJam?.undoEdit() && !AfterhoursGrooveLive.undoHits()) store.undo();
+          break;
+        case 'action.redo':
+          if (!window.AfterhoursJam?.undoEdit(true)) store.redo();
+          break;
+        case 'action.panic':
+          window.AfterhoursJam?.cancel();
+          M.release();
+          AfterhoursSynth.panic();
+          AfterhoursGrooveLive.stop();
+          break;
+        case 'action.loop':
+          AfterhoursGrooveLive.continuous(!AfterhoursGrooveApp.S.data.continuous);
+          break;
+        case 'action.pattern-prev':
+        case 'action.pattern-next': {
+          const project = AfterhoursGrooveApp.S.data;
+          AfterhoursGrooveLive.pattern(
+            (project.active + (target.endsWith('next') ? 1 : -1) + project.patterns.length) % project.patterns.length,
+          );
+          break;
+        }
+        case 'action.tap': {
+          const now = performance.now();
+          if (taps.length && (now - taps.at(-1) > 1500 || now - taps.at(-1) < 250)) taps = [];
+          taps.push(now);
+          taps = taps.slice(-5);
+          if (taps.length > 1)
+            S.getEngine('groove')
+              .tempo()
+              .set(Math.round((60000 * (taps.length - 1)) / (now - taps[0])));
+          break;
+        }
+      }
+    };
+    run().catch(error => message(error.message, true));
   });
   window.AfterhoursPerformanceStudio = {
     record: startRecording,

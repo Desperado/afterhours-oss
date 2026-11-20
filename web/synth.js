@@ -171,6 +171,41 @@
   window.addEventListener('afterhours:groove-selection', () => {
     if (matching.follow) matchGroove();
   });
+  // Update a matched part without restarting its held notes on each encoder tick.
+  function refreshMatchedSound(event) {
+    const replay = window.AfterhoursPerformanceStudio?.replaying;
+    if ((!matching.follow && !replay) || patch.family !== 'groove') return;
+    const groove = AfterhoursGrooveApp.S;
+    if (
+      patch.lane !== (event?.detail?.lane ?? (replay ? patch.lane : groove.selected)) ||
+      (event?.detail && event.detail.pattern !== groove.data.active)
+    )
+      return;
+    const track = groove.data.patterns[groove.data.active].tracks[patch.lane];
+    if (track.machine !== patch.track.machine || track.instrument !== patch.track.instrument) return;
+    // Keep the matched note's other sound locks when adjusting one parameter or its mixer.
+    const sound = {...patch.track, lfo: {...patch.track.lfo}};
+    if (event?.detail?.path) {
+      const [key, nested] = event.detail.path.split('.');
+      if (nested) sound[key][nested] = track[key][nested];
+      else if (track[key] === undefined) delete sound[key];
+      else sound[key] = track[key];
+    }
+    const next = AfterhoursGrooveInstrument.validate({
+      ...patch,
+      track: sound,
+      performance: AfterhoursPerformance.snapshot(),
+      mix: groove.data.mix,
+    });
+    Object.assign(patch, next);
+    engine?.renderer.setPerformance(patch.performance);
+    engine?.renderer.setMix(patch.mix);
+    save();
+  }
+  window.addEventListener('afterhours:groove-sound', refreshMatchedSound);
+  AfterhoursPerformance.store.subscribe((_, reason) => {
+    if (reason.startsWith('mixer-') || reason === 'replay') refreshMatchedSound();
+  });
   const controls = [
     ['cutoff', 'Filter', 80, 16000, 10],
     ['resonance', 'Resonance', 0.1, 12, 0.1],
@@ -352,6 +387,19 @@
         (['pulseWidth', 'glide'].includes(key) && patch.family !== 'analog');
     }
   }
+  function selectPreset(p) {
+    panic();
+    engine?.dispose();
+    engine = null;
+    patch = {...p};
+    matching.follow = false;
+    matchingControls();
+    saveMatching();
+    $('match-status').textContent = 'Keyboard preset selected · key and octave retained.';
+    save();
+    renderPatch();
+    AfterhoursPerformance.event('patch', {...patch});
+  }
   for (const p of Audio.presets) {
     const b = document.createElement('button');
     b.className = 'synth-patch';
@@ -361,19 +409,7 @@
     const sub = document.createElement('span');
     sub.textContent = p.era;
     b.append(title, sub);
-    b.addEventListener('click', () => {
-      panic();
-      engine?.dispose();
-      engine = null;
-      patch = {...p};
-      matching.follow = false;
-      matchingControls();
-      saveMatching();
-      $('match-status').textContent = 'Keyboard preset selected · key and octave retained.';
-      save();
-      renderPatch();
-      AfterhoursPerformance.event('patch', {...patch});
-    });
+    b.addEventListener('click', () => selectPreset(p));
     $('patches').append(b);
   }
   for (const [key, label, min, max, step] of controls) {
@@ -475,6 +511,22 @@
     panic,
     held: () => [...held].map(([id, v]) => ({id, ...v})),
     snapshot: () => structuredClone(patch),
+    presets: () => Audio.presets.map(({id, name}) => ({id, name})),
+    selectPreset: id => {
+      const preset = Audio.presets.find(p => p.id === id);
+      if (preset) selectPreset(preset);
+    },
+    stepPreset: direction => {
+      const index = Audio.presets.findIndex(p => p.id === patch.id);
+      const next =
+        index < 0
+          ? direction > 0
+            ? 0
+            : Audio.presets.length - 1
+          : (index + (direction > 0 ? 1 : -1) + Audio.presets.length) % Audio.presets.length;
+      selectPreset(Audio.presets[next]);
+      return patch.name;
+    },
     prepare: async () => {
       ensureEngine();
       await engine.context.resume();

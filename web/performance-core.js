@@ -47,6 +47,7 @@
     low: num(v?.low, -18, 18, 0),
     mid: num(v?.mid, -18, 18, 0),
     high: num(v?.high, -18, 18, 0),
+    drive: num(v?.drive, 0, 1, 0),
     delay: num(v?.delay, 0, 1, 0),
     reverb: num(v?.reverb, 0, 1, 0),
     mute: v?.mute === true,
@@ -75,13 +76,35 @@
         drums: num(raw.mixer?.drums, 0, 1.5, 1),
         music: num(raw.mixer?.music, 0, 1.5, 1),
       },
+      midi: {
+        profile: choice(raw.midi?.profile, ['generic', 'mpk-mini-plus-ii'], 'generic'),
+        knobBank: choice(
+          raw.midi?.knobBank,
+          [
+            'synth',
+            'macros',
+            'mixer-a',
+            'mixer-b',
+            'track-sound',
+            'track-mix',
+            'track-motion',
+            'track-rhythm',
+            'synth-extra',
+          ],
+          'synth',
+        ),
+        padMode: choice(raw.midi?.padMode, ['drums', 'beat', 'scenes', 'mute', 'notes'], 'drums'),
+        // Which Groove track each pad A1–B8 plays in drums and beat modes.
+        pads: Array.from({length: 16}, (_, i) => Math.round(num(raw.midi?.pads?.[i], 0, 15, i))),
+        native: raw.midi?.native === true,
+      },
       mappings: (Array.isArray(raw.mappings) ? raw.mappings : [])
         .slice(0, 128)
         .filter(
           m =>
             m &&
             typeof m.target === 'string' &&
-            /^(controller\.(cutoff|resonance|drive|motion|rate|space|transpose|cents|glide)|macro\.[0-7]|synth\.(cutoff|resonance|position|motion|pulseWidth|glide|envelope|attack|release|drive|chorus|delay|reverb|volume)|mixer\.(?:[0-9]|1[0-5])\.(level|pan|low|mid|high|delay|reverb))$/.test(
+            /^(controller\.(cutoff|resonance|drive|motion|rate|space|transpose|cents|glide)|macro\.[0-7]|synth\.(cutoff|resonance|position|motion|pulseWidth|glide|envelope|attack|release|drive|chorus|delay|reverb|volume)|mixer\.(?:[0-9]|1[0-5])\.(level|pan|low|mid|high|drive|delay|reverb)|mpk\.track\.(note|shape|color|sweep|contour|decay|cutoff|volume|pan|instrumentRelease|algorithm|chord|filter|length|rate|mute|solo|lfo\.(depth|target|division|shape))|mpk\.instrument|mpk\.knob\.[0-7]|mpk\.pad\.(?:[0-9]|1[0-5])|action\.(play|stop|play-stop|rewind|record|tap|undo|redo|panic|pattern-prev|pattern-next|loop|knob-bank|knob-bank-prev|pad-mode|continue|metronome|quantize|jam-confirm|jam-listen|jam-cancel|song-prev|song-next|keys-record)|action\.scene\.[0-7])$/.test(
               m.target,
             ),
         )
@@ -89,6 +112,13 @@
           device: text(m.device, '*', 160),
           channel: Math.round(num(m.channel, 0, 15, 0)),
           cc: Math.round(num(m.cc, 0, 127, 0)),
+          type: choice(m.type, ['cc', 'note', 'program'], 'cc'),
+          number: Math.round(num(m.number, 0, 127, 0)),
+          mode: choice(
+            m.mode,
+            ['absolute', 'direct', 'twos-complement', 'binary-offset', 'sign-magnitude'],
+            'absolute',
+          ),
           target: m.target,
         })),
       mods: (Array.isArray(raw.mods) ? raw.mods : []).slice(0, 4).map(m => ({
@@ -184,13 +214,24 @@
     const [status, a, b = 0] = bytes,
       channel = status & 15,
       type = status & 240;
+    if (!Number.isInteger(status) || status < 128 || status >= 240) return null;
+    if (bytes.length < ([192, 208].includes(type) ? 2 : 3)) return null;
+    if (![a, b].every(n => Number.isInteger(n) && n >= 0 && n < 128)) return null;
     if (type === 144) return {type: b ? 'on' : 'off', channel, note: a, velocity: b / 127};
     if (type === 128) return {type: 'off', channel, note: a};
     if (type === 176) return {type: 'cc', channel, cc: a, value: b};
     if (type === 224) return {type: 'bend', channel, value: ((((b << 7) | a) - 8192) / 8192) * 2};
     if (type === 208) return {type: 'pressure', channel, value: a / 127};
     if (type === 160) return {type: 'pressure', channel, note: a, value: b / 127};
+    if (type === 192) return {type: 'program', channel, number: a};
     return null;
+  }
+  // Explicit formats avoid mistaking the first absolute value for a relative turn.
+  function relative(value, mode) {
+    if (mode === 'twos-complement') return value < 64 ? value : value - 128;
+    if (mode === 'binary-offset') return value - 64;
+    if (mode === 'sign-magnitude') return value < 64 ? value : -(value - 64);
+    return 0;
   }
   function shape(settings, values, selected = true) {
     if (!selected) return settings;
@@ -272,6 +313,12 @@
           case 'noteOff':
             value = {id: id(e.value?.id)};
             break;
+          case 'laneHit':
+            value = {
+              lane: Math.round(num(e.value?.lane, 0, 15, 0)),
+              velocity: num(e.value?.velocity, 0, 1, 0.8),
+            };
+            break;
           case 'tempo':
             value = num(e.value, 40, 240, 93);
             break;
@@ -292,6 +339,21 @@
             break;
           case 'patch':
             value = patch(e.value);
+            break;
+          case 'trackControl':
+            if (
+              !/^(note|shape|color|sweep|contour|decay|cutoff|volume|pan|instrumentRelease|algorithm|chord|filter|length|rate|mute|solo|lfo\.(depth|target|division|shape))$/.test(
+                e.value?.path,
+              ) ||
+              !Number.isFinite(e.value?.value)
+            )
+              throw new Error('Unknown track control');
+            value = {
+              pattern: Math.round(num(e.value.pattern, 0, 63, 0)),
+              lane: Math.round(num(e.value.lane, 0, 15, 0)),
+              path: e.value.path,
+              value: num(e.value.value, -100, 16000, 0),
+            };
             break;
           case 'synthControl':
             if (
@@ -384,7 +446,7 @@
       events,
     };
   }
-  const api = {clone, controller, validate, Store, macroNames, pickup, midi, shape, take};
+  const api = {clone, controller, validate, Store, macroNames, pickup, midi, relative, shape, take};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.AfterhoursPerformanceCore = api;
 })(typeof window === 'undefined' ? globalThis : window);

@@ -95,8 +95,10 @@
   window.AfterhoursGrooveApp = {
     S,
     keys,
-    LETTERS: Array.from({length: 32}, (_, i) =>
-      i < 26 ? String.fromCharCode(65 + i) : `A${String.fromCharCode(65 + i - 26)}`,
+    LETTERS: Array.from({length: 64}, (_, i) =>
+      i < 26
+        ? String.fromCharCode(65 + i)
+        : `${String.fromCharCode(64 + Math.floor(i / 26))}${String.fromCharCode(65 + (i % 26))}`,
     ),
     PAGE: 16,
     $g,

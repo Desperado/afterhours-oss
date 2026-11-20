@@ -109,6 +109,104 @@ test('recorded instruments preserve dynamics, cycle takes, transpose and release
   expect(result.held.remaining).toBe(0);
 });
 
+test('sequenced sample bends reach their target without bending the other voice; release can be shortened', async ({
+  page,
+}) => {
+  const sample = '0'.repeat(24) + '.flac';
+  await page.route('**/growlybass/manifest.json', r =>
+    r.fulfill({
+      json: {
+        version: 1,
+        id: 'growlybass',
+        regions: [
+          {
+            sample,
+            lo: 0,
+            hi: 127,
+            root: 60,
+            lovel: 0,
+            hivel: 127,
+            attack: 0.001,
+            release: 0.2,
+            volume: 0,
+            veltrack: 100,
+            take: 0,
+            takes: 1,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route(`**/growlybass/${sample}`, r => r.fulfill({body: tone(220, 0.15), contentType: 'audio/wav'}));
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const track = {
+      ...AfterhoursGroove.project().patterns[0].tracks[6],
+      machine: 'Instrument',
+      instrument: 'growlybass',
+      note: 60,
+      cutoff: 16000,
+      volume: 80,
+    };
+    await AfterhoursInstruments.prepare([{tracks: [track]}]);
+    async function render(release, held = false, gate = 1) {
+      const ctx = new OfflineAudioContext(2, 16000, 16000);
+      const performance = AfterhoursPerformanceCore.validate({controller: {enabled: false}, targets: []});
+      const renderer = new FMGrooveAudio(ctx, 120, performance.controller, performance);
+      renderer.setMix({space: 0, pump: 0});
+      const voice = renderer.hit(
+        {
+          lane: 6,
+          settings: {...track, pan: -100, ...(release ? {instrumentRelease: release} : {})},
+          velocity: 1,
+          gate,
+          bend: [
+            [0, 0],
+            [0.5, 200],
+            [1, 200],
+          ],
+        },
+        0.01,
+        held,
+      );
+      renderer.hit({lane: 7, settings: {...track, pan: 100}, velocity: 1, gate: 1}, 0.01);
+      if (held) voice.release(0.5);
+      const audio = await ctx.startRendering();
+      const frequency = (channel, a, b) => {
+        const signal = audio.getChannelData(channel),
+          crossings = [];
+        for (let i = Math.ceil(a * 16000); i < b * 16000; i++)
+          if (signal[i - 1] < 0 && signal[i] >= 0) crossings.push(i - 1 + -signal[i - 1] / (signal[i] - signal[i - 1]));
+        return ((crossings.length - 1) * 16000) / (crossings.at(-1) - crossings[0]);
+      };
+      const late = audio.getChannelData(0).slice(0.17 * 16000, 0.22 * 16000);
+      const result = {
+        early: frequency(0, 0.03, 0.08),
+        bent: frequency(0, 0.32, 0.46),
+        steady: frequency(1, 0.32, 0.46),
+        late: Math.sqrt(late.reduce((n, x) => n + x * x, 0) / late.length),
+        remaining: renderer.voices.size,
+      };
+      renderer.dispose();
+      return result;
+    }
+    return {
+      bent: await render(),
+      held: await render(undefined, true),
+      short: await render(0.02, false, 0.2),
+      recorded: await render(undefined, false, 0.2),
+    };
+  });
+  expect(result.bent.bent).toBeCloseTo(220 * 2 ** (2 / 12), 0);
+  expect(result.bent.early).toBeGreaterThan(220);
+  expect(result.bent.early).toBeLessThan(235);
+  expect(result.bent.steady).toBeCloseTo(220, 0);
+  expect(result.held.bent).toBeCloseTo(220, 0);
+  expect(result.short.late).toBeLessThan(0.000001);
+  expect(result.recorded.late).toBeGreaterThan(0.001);
+  expect(result.bent.remaining).toBe(0);
+});
+
 test('missing instruments report an actionable error', async ({page}) => {
   await page.route('**/growlybass/manifest.json', r => r.fulfill({status: 404, body: ''}));
   await page.goto('/');
@@ -120,6 +218,78 @@ test('missing instruments report an actionable error', async ({page}) => {
     }
   });
   expect(message).toContain('Instrument not installed: growlybass');
+});
+
+test('lane drive adds harmonics to sampled bass and leaves other lanes unchanged', async ({page}) => {
+  const sample = '0'.repeat(24) + '.flac';
+  await page.route('**/growlybass/manifest.json', r =>
+    r.fulfill({
+      json: {
+        version: 1,
+        id: 'growlybass',
+        regions: [
+          {
+            sample,
+            lo: 26,
+            hi: 84,
+            root: 60,
+            lovel: 0,
+            hivel: 127,
+            attack: 0.001,
+            release: 0.05,
+            volume: 0,
+            veltrack: 100,
+            take: 0,
+            takes: 1,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route(`**/growlybass/${sample}`, r => r.fulfill({body: tone(100, 0.15), contentType: 'audio/wav'}));
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const track = {
+      ...AfterhoursGroove.project().patterns[0].tracks[6],
+      machine: 'Instrument',
+      instrument: 'growlybass',
+      note: 60,
+      cutoff: 16000,
+      volume: 80,
+    };
+    await AfterhoursInstruments.prepare([{tracks: [track]}]);
+    async function render(drive, lane) {
+      const ctx = new OfflineAudioContext(2, 16000, 16000);
+      const performance = AfterhoursPerformanceCore.validate({controller: {enabled: false}, targets: []});
+      performance.mixer.lanes[6].drive = drive;
+      const renderer = new FMGrooveAudio(ctx, 120, performance.controller, performance);
+      renderer.hit({lane, settings: track, velocity: 1, gate: 1}, 0.01);
+      const audio = await ctx.startRendering();
+      const signal = Array.from(audio.getChannelData(0).slice(1600, 6400));
+      renderer.dispose();
+      return signal;
+    }
+    const clean = await render(0, 6),
+      dirty = await render(0.75, 6),
+      other = await render(0.75, 7);
+    const harmonic = (signal, hz) => {
+      let re = 0,
+        im = 0;
+      signal.forEach((x, i) => {
+        re += x * Math.cos((2 * Math.PI * hz * i) / 16000);
+        im += x * Math.sin((2 * Math.PI * hz * i) / 16000);
+      });
+      return Math.hypot(re, im);
+    };
+    return {
+      cleanRatio: harmonic(clean, 300) / harmonic(clean, 100),
+      dirtyRatio: harmonic(dirty, 300) / harmonic(dirty, 100),
+      otherDifference: Math.max(...other.map((x, i) => Math.abs(x - clean[i]))),
+    };
+  });
+  expect(result.dirtyRatio).toBeGreaterThan(0.03);
+  expect(result.dirtyRatio).toBeGreaterThan(result.cleanRatio * 5);
+  expect(result.otherDifference).toBeLessThan(1e-7);
 });
 
 test('Match Groove keeps a newly added empty instrument lane selected', async ({page}) => {
@@ -208,4 +378,107 @@ test('installed banks render and play through the matched Synth keyboard', async
   await page.keyboard.up('a');
   expect(errors).toEqual([]);
   await page.screenshot({path: '.context/sampled-instruments-playable.png'});
+});
+
+test('sample release and step bends can be edited and survive reload', async ({page}) => {
+  await page.goto('/');
+  await page.getByRole('combobox', {name: 'Machine type', exact: true}).selectOption('Instrument');
+  const release = page.getByRole('slider', {name: 'Release', exact: true});
+  await release.focus();
+  for (let n = 0; n < 9; n++) await page.keyboard.press('ArrowRight');
+  await expect(release).toHaveAttribute('aria-valuenow', '0.045');
+  await page.locator('#groove-lock').click();
+  await page.getByRole('slider', {name: 'Bend end', exact: true}).press('End');
+  await page.getByRole('slider', {name: 'Bend rise', exact: true}).press('End');
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const {keys} = AfterhoursGrooveApp;
+        return JSON.parse(localStorage.getItem(keys.project))?.patterns[0].tracks[4].steps[0].bend?.at(-1)[1];
+      }),
+    )
+    .toBe(2400);
+  await page.reload();
+  const saved = await page.evaluate(() => {
+    const t = AfterhoursGrooveApp.S.data.patterns[0].tracks[4];
+    return {release: t.instrumentRelease, bend: t.steps[0].bend};
+  });
+  expect(saved).toEqual({
+    release: 0.045,
+    bend: [
+      [0, 0],
+      [1, 2400],
+    ],
+  });
+  await page.getByRole('slider', {name: 'Release', exact: true}).press('Delete');
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const {keys} = AfterhoursGrooveApp;
+        return JSON.parse(localStorage.getItem(keys.project))?.patterns[0].tracks[4].instrumentRelease;
+      }),
+    )
+    .toBeUndefined();
+  await page.reload();
+  await expect(page.getByRole('slider', {name: 'Release', exact: true})).toHaveAttribute('aria-valuetext', 'Recorded');
+});
+
+test('sequenced synth pitch bends affect only their own voice', async ({page}) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const ctx = new OfflineAudioContext(2, 24000, 24000);
+    await AfterhoursLadder.prepare(ctx);
+    await AfterhoursVoice.prepare(ctx);
+    const performance = AfterhoursPerformanceCore.validate({controller: {enabled: false}, targets: []});
+    const renderer = new FMGrooveAudio(ctx, 120, performance.controller, performance);
+    renderer.setMix({space: 0, pump: 0});
+    const settings = {
+      ...AfterhoursGroove.project().patterns[0].tracks[6],
+      machine: 'Tone',
+      note: 57,
+      shape: 0,
+      color: 0,
+      sweep: 0,
+      decay: 0.05,
+      volume: 40,
+      cutoff: 10000,
+      lfo: {target: 'pitch', depth: 0, division: 4, shape: 'sine'},
+    };
+    renderer.hit(
+      {
+        lane: 6,
+        settings: {...settings, pan: -100},
+        velocity: 1,
+        gate: 1.5,
+        bend: [
+          [0, 0],
+          [0.2, 0],
+          [0.4, 1200],
+          [1, 1200],
+        ],
+      },
+      0.01,
+    );
+    renderer.hit({lane: 7, settings: {...settings, pan: 100}, velocity: 1, gate: 1.5}, 0.01);
+    const audio = await ctx.startRendering();
+    const frequency = (channel, start, end) => {
+      const signal = audio.getChannelData(channel),
+        crossings = [];
+      for (let i = Math.ceil(start * 24000); i < end * 24000; i++)
+        if (signal[i - 1] < 0 && signal[i] >= 0) crossings.push(i - 1 - signal[i - 1] / (signal[i] - signal[i - 1]));
+      return ((crossings.length - 1) * 24000) / (crossings.at(-1) - crossings[0]);
+    };
+    const answer = {
+      early: frequency(0, 0.04, 0.12),
+      bent: frequency(0, 0.4, 0.6),
+      steady: frequency(1, 0.4, 0.6),
+      remaining: renderer.voices.size,
+    };
+    renderer.dispose();
+    return answer;
+  });
+  expect(result.early).toBeCloseTo(220, 0);
+  expect(Math.abs(result.bent - 440)).toBeLessThan(2);
+  expect(result.steady).toBeCloseTo(220, 0);
+  expect(result.remaining).toBe(0);
 });

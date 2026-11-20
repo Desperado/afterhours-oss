@@ -8,6 +8,7 @@
   let playVersion = 0,
     timer = null,
     sampleResumeFrame = null,
+    stoppedPosition = null,
     ladderWarned = false;
 
   function audibleFrame() {
@@ -44,11 +45,14 @@
     if (a.context.state !== 'running') throw new Error('Browser audio suspended · press Play');
     return a;
   }
-  async function auditionLane(lane) {
+  async function auditionLane(lane, velocity = 0.8) {
+    if (!Number.isInteger(lane) || lane < 0 || lane >= pattern().tracks.length) return;
     try {
       const settings = {...pattern().tracks[lane]},
         a = await audio([{tracks: [settings]}]);
-      a.hit({lane, settings, velocity: 0.8, gate: 0.5}, a.context.currentTime + 0.01);
+      velocity = Math.max(0, Math.min(1, Number.isFinite(velocity) ? velocity : 0.8));
+      a.hit({lane, settings, velocity, gate: 0.5}, a.context.currentTime + 0.01);
+      AfterhoursPerformance.event('laneHit', {lane, velocity});
       status(`Audition · ${settings.machine}`);
     } catch (e) {
       status(e.message, 'err');
@@ -60,6 +64,20 @@
     tone = message === 'Groove stopped' ? 'ok' : 'err',
     tails = false,
   ) {
+    const frame = audibleFrame();
+    stoppedPosition =
+      S.running && !S.sync && frame && message === 'Groove stopped'
+        ? {
+            data: S.data,
+            active: S.data.active,
+            songMode: S.songMode,
+            playing: frame.pattern,
+            offsetTicks:
+              frame.absolute + (Math.max(0, S.engine.context.currentTime - frame.time) * 8) / frame.secondsPerBeat,
+            loopOrigin: frame.origin,
+            songOffset: frame.songOffset ?? S.songStart,
+          }
+        : null;
     window.AfterhoursDemo?.stop();
     if (S.running || S.starting) AfterhoursPerformance.event('transport', 'stop');
     ++playVersion;
@@ -101,6 +119,7 @@
       }
       a.stop();
       const resume = S.resumePosition;
+      stoppedPosition = null;
       S.resumePosition = null;
       const origin = a.context.currentTime + 0.25;
       a.started = origin - ((resume?.offsetTicks || 0) / 8) * (60 / S.data.bpm);
@@ -111,7 +130,7 @@
       S.shownFrame = null;
       S.visuals = [];
       S.hits = [];
-      S.playing = S.data.active;
+      S.playing = resume?.playing ?? S.data.active;
       S.transition = null;
       S.songOffset = resume?.songOffset ?? S.songStart;
       S.sectionJump = null;
@@ -128,8 +147,19 @@
       if (version === playVersion) S.starting = false;
     }
   }
+  function continuePlay() {
+    if (S.running || S.starting) return;
+    if (
+      stoppedPosition?.data === S.data &&
+      stoppedPosition.active === S.data.active &&
+      stoppedPosition.songMode === S.songMode
+    )
+      S.resumePosition = stoppedPosition;
+    return play();
+  }
   // Start: restart Groove's own clock from the top of the song or pattern.
   function restart() {
+    stoppedPosition = null;
     window.AfterhoursDemo?.stop();
     S.resumePosition = null;
     sampleResumeFrame = null;
@@ -301,6 +331,7 @@
         if (!S.visuals.some(v => v.finished)) S.visuals.push({time: S.nextTime, finished: true});
         return;
       }
+      App.metronome?.(S.tick, S.nextTime);
       for (const e of frameEvents(frame)) {
         const when = S.nextTime + (e.beat - S.tick / 8) * secondsPerBeat;
         const voice = a.hit(e, when);
@@ -347,6 +378,7 @@
         a.bpm = bpm;
         a.setMix?.(S.data.mix);
       }
+      App.metronome?.(S.syncTick, time);
       for (const e of frameEvents(frame)) {
         const when = now + (AfterhoursBeatGrid.timeAt(beats, e.beat) - position) / rate;
         if (when >= now + 0.005) {
@@ -367,6 +399,7 @@
     auditionLane,
     stop,
     play,
+    continuePlay,
     restart,
     queuePattern,
     jumpToSection,

@@ -58,6 +58,7 @@ class AfterhoursMixer {
         amp: gain(),
         dry: gain(),
         dirty: gain(),
+        preamp: gain(),
         shape: ctx.createWaveShaper(),
       };
     c.low.type = 'lowshelf';
@@ -71,7 +72,7 @@ class AfterhoursMixer {
     c.shape.oversample = '2x';
     c.input.connect(c.low).connect(c.mid).connect(c.high);
     c.high.connect(c.dry).connect(c.pan);
-    c.high.connect(c.shape).connect(c.dirty).connect(c.pan);
+    c.high.connect(c.preamp).connect(c.shape).connect(c.dirty).connect(c.pan);
     c.pan.connect(c.amp);
     return c;
   }
@@ -122,7 +123,11 @@ class AfterhoursMixer {
     set(c.low.gain, p.low + (selected ? m[0] * 4 : 0));
     set(c.mid.gain, p.mid);
     set(c.high.gain, p.high + (selected ? m[4] * 3 : 0));
-    const bite = selected ? m[1] * 0.65 : 0;
+    // Lane drive works on recordings as well as synths. The dry path keeps
+    // the bass fundamental while the driven path adds clipped harmonics.
+    const drive = p.drive || 0,
+      bite = Math.max(drive, selected ? m[1] * 0.65 : 0);
+    set(c.preamp.gain, 1 + drive * 24);
     set(c.dry.gain, 1 - bite);
     set(c.dirty.gain, bite);
     if (c.legacy) this.applyChannel(index, c.legacy, immediate);

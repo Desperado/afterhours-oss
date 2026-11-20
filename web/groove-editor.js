@@ -461,6 +461,7 @@
     status(`${t.machine} ${t.mute ? 'muted' : 'unmuted'}`, t.mute ? 'lock' : 'ok');
   }
   function selectLane(lane) {
+    if (!Number.isInteger(lane) || !pattern().tracks[lane]) return false;
     S.selected = lane;
     renderPads();
     renderPerformSteps();
@@ -468,6 +469,7 @@
     renderTrackHeads();
     renderEditor();
     window.dispatchEvent(new Event('afterhours:groove-selection'));
+    return true;
   }
   function renderPads() {
     const host = document.getElementById('perform-pads');
@@ -707,6 +709,26 @@
     if (t.machine === 'Instrument') {
       $g('macros').replaceChildren();
       $g('voice').replaceChildren(...['note', 'cutoff', 'volume', 'pan'].map(key => base(key).el));
+      const release = Shell.knob({
+        label: 'Release',
+        name: 'Sample release',
+        min: 0,
+        max: 2,
+        step: 0.005,
+        value: t.instrumentRelease ?? 0,
+        format: v => (v ? `${v.toFixed(3)}s` : 'Recorded'),
+        onInput: v => {
+          if (v) t.instrumentRelease = v;
+          else delete t.instrumentRelease;
+          save();
+        },
+        onReset: () => {
+          delete t.instrumentRelease;
+          release.set(0);
+          save();
+        },
+      });
+      $g('voice').append(release.el);
       fieldRow(
         machine,
         'Instrument',
@@ -942,6 +964,33 @@
       stepKnob('repeat', 'Retrig', 1, 4, 1),
       stepKnob('gate', 'Gate', 0.1, 8, 0.1),
     );
+    if (t.machine === 'Instrument' && t.instrument !== 'virtuosity-drums') {
+      const values = [s.bend?.[0][1] ?? 0, s.bend?.at(-1)[1] ?? 0, s.bend?.[1][0] ?? 0.5];
+      ['Bend start', 'Bend end', 'Bend rise'].forEach((name, i) => {
+        const k = Shell.knob({
+          label: name,
+          name,
+          min: i === 2 ? 0.01 : -2400,
+          max: i === 2 ? 1 : 2400,
+          step: i === 2 ? 0.01 : 1,
+          value: values[i],
+          format: v => (i === 2 ? `${Math.round(v * 100)}%` : `${v > 0 ? '+' : ''}${v}c`),
+          onInput: v => {
+            values[i] = v;
+            if (!values[0] && !values[1]) delete s.bend;
+            else {
+              s.bend = [
+                [0, values[0]],
+                [values[2], values[1]],
+              ];
+              if (values[2] < 1) s.bend.push([1, values[1]]);
+            }
+            save();
+          },
+        });
+        $g('trig').append(k.el);
+      });
+    }
     const condition = $g('condition');
     condition.replaceChildren();
     fieldRow(
@@ -1088,6 +1137,15 @@
   });
 
   Object.assign(App.ui, {
+    selectLane,
+    refreshSound: () => {
+      renderEditor();
+      syncPerform();
+      renderPads();
+      renderTrackHeads();
+      renderPages();
+      updateAllSteps();
+    },
     selectPattern,
     renderTrack,
     renderSection,
