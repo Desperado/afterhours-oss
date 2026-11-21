@@ -23,7 +23,8 @@ Three large 24-point rows show:
 The bottom row always includes the selected track number. The row format follows [Bitwig's MPK driver](https://github.com/bitwig/bitwig-extensions/blob/main/src/main/java/com/bitwig/extensions/controllers/akai/mpkmk4/display/MpkDisplayFont.java).
 
 - The selected pad is steady yellow.
-- While the encoder is held, the display shows the track number and name, and keeps the name briefly after release.
+- While the encoder is held, the display prompts `Pad = select track`; striking a pad shows that track's number and name.
+- A song chosen with `SHIFT` + BANK appears as `> Song name` with `Play = load song` until Play/Stop loads it.
 - Changing the knob bank shows the bank name on the display; turning a knob shows its parameter and value.
 
 ## Selecting tracks
@@ -70,7 +71,7 @@ The native DAW profile handles `SHIFT` directly.
 
 | Control | Action |
 | --- | --- |
-| **Play/Stop** | Toggles Groove playback. Play starts from the beginning. |
+| **Play/Stop** | Toggles Groove playback. Play starts from the beginning and first loads a song chosen with `SHIFT` + BANK. Stop also ends a recording take. |
 | `SHIFT` + Play/Stop (Continue) | Resumes the audible position after Stop in the same Groove session |
 | **Record** | Starts or finishes a live take |
 | `SHIFT` + Record | Records keys into the selected track |

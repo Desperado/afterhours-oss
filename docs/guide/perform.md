@@ -43,6 +43,8 @@ Hold **Hold to experiment** with a pointer or `Space`/`Enter` to try changes, th
 3. Play.
 4. Stop. A new recording is added to **Saved performances** in local IndexedDB.
 
+Any Stop ends a take: **Stop take / replay**, the top ■ Stop, the song panel's **■ Stop**, and Play/Stop on the MPK while the song plays. Stop pressed while a take is still starting waits for it and then saves it.
+
 A take captures stereo audio plus keys, controller moves, tuning, macros, lane mix, modulation routes, Synth patches, tempo, pattern changes and section jumps.
 
 To rename a take afterward, use **Take name** → **Save name**.

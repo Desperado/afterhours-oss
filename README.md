@@ -34,7 +34,7 @@ Open **http://127.0.0.1:8765**. `bash start.sh --port 8766` uses another port; `
 
 | Area | What it does | Guide |
 | --- | --- | --- |
-| **Groove** | Sixteen-lane step sequencer with twelve synthesized machines and sampled instruments, patterns, per-step locks, song arrangements, a library of original tracks, MIDI overlay, and WAV, MIDI and project export. | [Groove](docs/guide/groove.md) |
+| **Groove** | Sixteen-lane step sequencer with twelve synthesized machines and sampled instruments, patterns, per-step locks, song arrangements, a library of original tracks, building a track from scratch with pads and keys, MIDI overlay, and WAV, MIDI and project export. | [Groove](docs/guide/groove.md) |
 | **Synth** | Polyphonic keyboard instrument with sixteen patches that can match a Groove part and stay in the song's key. | [Synth and Control](docs/guide/synth-and-control.md) |
 | **Control** | A live sound layer over Groove, Synth and recording playback: tone, resonance, heat, movement, space, scales and tunings, with A/B snapshots. | [Synth and Control](docs/guide/synth-and-control.md) |
 | **Perform** | Record and replay takes with gestures, named parts, eight macros, eight morphing scenes, a lane mixer, modulation routes, USB MIDI with MIDI Learn, and an experimental "play a phrase, add a band" jam. | [Perform](docs/guide/perform.md) |

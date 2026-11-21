@@ -175,6 +175,29 @@ Limits:
 - **Space** adds a tempo-synced echo.
 - **Pump** ducks the music behind the kick.
 
+## Build a track from scratch
+
+The **Build a track from scratch** panel, under the song controls, records a song live instead of drawing steps.
+
+1. **New song from scratch** replaces the session with an empty two-bar loop on the starter kit, at the current tempo. It asks first; save the current song if you need it. Connected controller settings are kept. As with **Load track**, the first replaced session is kept as a backup for **Restore session**.
+2. Turn on **Metronome** and press **▶ Play**.
+3. **Pads: Beat** makes the pads play tracks. While Groove plays, each hit is written with its velocity to the nearest 1/16 step of the pattern you hear. Any track can go on any pad; see [MPK → Pad modes](mpk-mini-plus-ii.md#pad-modes).
+4. Select a track, for example 5 · bass. On the MPK, hold the central encoder and strike its pad.
+5. **● Record keys into selected track**, or `SHIFT` + Record on the MPK, records the keys into that track with pitch and length. The keys switch to that track's sound, even when it is still empty, so you hear what is recorded. The MPK display shows `KEYS`.
+6. **Undo last recording** (UNDO on the MPK) removes the latest recording group; `SHIFT` + UNDO restores it. **Clear selected track** empties the track and can be undone the same way.
+7. **Save song…** downloads the project JSON.
+
+How recording groups work:
+
+- Pad hits form one group per playback run, and keys form one group per track and run. Undoing the bass keeps the drums.
+- Steps written during a performance take are part of the take, so its replay writes them again.
+
+Limits:
+
+- Notes are written only while Groove plays; stopped, pads and keys just sound.
+- A step holds one note, so a chord played into one track keeps a single note per step.
+- In Song mode, hits go to the pattern currently playing. A track muted in that section is not heard.
+
 ## Overlay MIDI
 
 **Overlay MIDI…** adds a four-bar part from a MIDI file to empty lanes in the current pattern.
