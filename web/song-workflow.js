@@ -10,15 +10,17 @@
     App = AfterhoursGrooveApp,
     preset = document.getElementById('groove-preset');
   // A song browsed on the MPK waits here; Play loads it, so browsing never replaces the session.
+  // It belongs to the project it was chosen over: a new, imported or restored project drops it.
   let pending = null;
-  const loaded = () => Presets.catalog.find(c => c.title === App.S.data.title)?.id;
+  const current = () => (pending?.over === App.S.data ? pending.id : null);
   const title = id => Presets.catalog.find(c => c.id === id)?.title;
   function browse(direction) {
     const list = Presets.catalog,
-      from = list.findIndex(c => c.id === (pending ?? loaded() ?? preset.value));
+      loaded = Live.loadedPreset,
+      from = list.findIndex(c => c.id === (current() ?? loaded ?? preset.value));
     const next =
       list[from < 0 ? (direction > 0 ? 0 : list.length - 1) : (from + direction + list.length) % list.length];
-    pending = next.id === loaded() ? null : next.id;
+    pending = next.id === loaded ? null : {id: next.id, over: App.S.data};
     preset.value = next.id;
     preset.dispatchEvent(new Event('change'));
     status(
@@ -28,12 +30,11 @@
     );
   }
   function loadPending() {
-    if (!pending) return false;
-    const id = pending;
+    const id = current();
     pending = null;
+    if (!id) return false;
     preset.value = id;
-    document.getElementById('groove-load-preset').click();
-    if (loaded() !== id) throw new Error('Не вдалося завантажити пісню · спершу збережи поточний проєкт');
+    if (!Live.loadPreset(id)) throw new Error('Не вдалося завантажити пісню · спершу збережи поточний проєкт');
     status(`«${title(id)}» завантажено`);
     return true;
   }
@@ -49,12 +50,14 @@
     browse,
     loadPending,
     get pending() {
-      return pending ? title(pending) : null;
+      const id = current();
+      return id ? title(id) : null;
     },
   };
   $('play').addEventListener('click', async () => {
     try {
-      if (!Live.clock().running) {
+      const clock = Live.clock();
+      if (!clock.running && !clock.starting) {
         loadPending();
         await Live.play();
       }
@@ -63,9 +66,15 @@
       status(error.message);
     }
   });
-  $('stop').addEventListener('click', () => {
+  $('stop').addEventListener('click', async () => {
     Live.stop();
-    status('Зупинено');
+    try {
+      // Also finish a performance take or stop its replay, like the top Stop.
+      await window.AfterhoursPerformanceStudio?.stopTake();
+      status('Зупинено');
+    } catch (error) {
+      status(error.message);
+    }
   });
   $('new').addEventListener('click', () => {
     if (

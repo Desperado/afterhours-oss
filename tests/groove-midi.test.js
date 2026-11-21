@@ -110,7 +110,9 @@ test('Overlay rejects too much polyphony, drums, empty windows and out-of-range 
   assert.throws(() => M.overlay(p, part), /Not enough/);
   assert.throws(() => M.overlay(p, {...part, channel: 9}), /melodic/);
   assert.throws(() => M.overlay(p, part, 2), /No notes/);
-  assert.throws(() => M.overlay(p, part, 1, 48), /outside/);
+  // C8 (108) is the top of the range; 109 is rejected.
+  assert.throws(() => M.overlay(p, part, 1, 48), /Not enough/);
+  assert.throws(() => M.overlay(p, {...part, notes: [{...part.notes[0], note: 61}]}, 1, 48), /outside C1–C8/);
   assert.deepEqual(p, before);
 });
 test('New original songs have distinct bass and lead phrases, playable arrangements and four free MIDI lanes', () => {

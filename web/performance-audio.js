@@ -137,7 +137,8 @@ window.AfterhoursAudio = (() => {
     if (!take) return null;
     const end = Math.round(context.currentTime * context.sampleRate);
     // A suspended context never answers the flush; never leave the take stuck recording.
-    await context.resume().catch(() => {});
+    // Do not await resume: if it hangs, the flush timeout must still finish the take.
+    context.resume().catch(() => {});
     await flush().catch(error => console.warn('Recording tail not flushed; saving captured audio.', error));
     const result = {...take, end, rate: context.sampleRate};
     take = null;

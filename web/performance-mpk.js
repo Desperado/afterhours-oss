@@ -89,6 +89,10 @@ window.AfterhoursMPK = (() => {
     }
     if (!enabled()) return report('DAW-профіль вимкнено');
     if (!output || !inputId) return report('Очікую MPK mini Plus II · підключи USB');
+    if (!M.sysex)
+      return report(
+        'Немає дозволу SysEx · дисплей і світло MPK недоступні. Дозволь SysEx для MIDI й натисни «Увімкнути» ще раз.',
+      );
     if (!verified && attempts === 0) inquire();
   }
   function inquire() {
@@ -140,12 +144,14 @@ window.AfterhoursMPK = (() => {
       if (msg.type === 'off') {
         notes.delete(id);
         AfterhoursSynth.off(id);
+      } else if (shift) {
+        // SHIFT + pad belongs to the MPK firmware (pad modes, Prog, Chord Type), never to Afterhours.
+        // A held encoder must not confirm the jam on release after this either.
+        if (encoderHeld) encoderHeld.used = true;
+        return true;
       } else if (encoderHeld) {
         encoderHeld.used = true;
         action('mpk.select-lane.' + (msg.note - 36));
-      } else if (shift) {
-        // SHIFT + pad belongs to the MPK firmware (pad modes, Prog, Chord Type), never to Afterhours.
-        return true;
       } else if (P.store.state.midi.padMode === 'notes') {
         notes.add(id);
         AfterhoursSynth.midiOn(id, msg.note, msg.velocity).catch(error => report(error.message));

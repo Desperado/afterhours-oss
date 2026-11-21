@@ -32,17 +32,28 @@
       }
       const jumped =
         this.running &&
-        (clock.beat < this.lastBeat - 0.01 || clock.beat - this.lastBeat > 2 || now - this.lastTime > 250);
+        (clock.run !== this.run ||
+          clock.beat < this.lastBeat - 0.01 ||
+          clock.beat - this.lastBeat > 2 ||
+          now - this.lastTime > 250);
       if (jumped) this.stop();
       if (!this.running) {
-        if (clock.beat < 1 / 24) this.output.send([0xfa]);
-        else {
-          const position = Math.min(16383, Math.floor(clock.beat * 4));
+        // A run that began at zero is a Start even if this poll arrives a little late: catch up its first
+        // pulses at once. Anything else continues from the next sixteenth, where Song Position and the
+        // first pulse agree.
+        if (!clock.startBeat && clock.beat < 1) {
+          this.output.send([0xfa]);
+          const due = Math.ceil(clock.beat * 24 - 0.001);
+          for (let pulse = 0; pulse < due; pulse++) this.output.send([0xf8], now);
+          this.nextPulse = due;
+        } else {
+          const position = Math.min(16383, Math.ceil(clock.beat * 4 - 0.001));
           this.output.send([0xf2, position & 127, (position >> 7) & 127]);
           this.output.send([0xfb]);
+          this.nextPulse = position * 6;
         }
-        this.nextPulse = Math.ceil(clock.beat * 24);
         this.running = true;
+        this.run = clock.run;
       } else if (clock.bpm !== this.bpm) {
         this.output.clear();
         this.nextPulse = Math.ceil(clock.beat * 24);

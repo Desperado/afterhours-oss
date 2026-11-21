@@ -351,12 +351,25 @@ window.AfterhoursLiveMIDI = (() => {
     for (const v of [...voices.values()]) if (!connected.has(v.device)) releaseDevice(v.device);
     window.dispatchEvent(new Event('afterhours:mididevices'));
   }
+  let sysexAllowed = false;
   async function connect() {
     if (!navigator.requestMIDIAccess) throw new Error('USB MIDI needs the desktop app or a browser with Web MIDI.');
-    access = await navigator.requestMIDIAccess({sysex: true});
+    // SysEx is only needed for the MPK's display and lights; without that permission, plain MIDI still works.
+    try {
+      access = await navigator.requestMIDIAccess({sysex: true});
+      sysexAllowed = true;
+    } catch {
+      access = await navigator.requestMIDIAccess();
+      sysexAllowed = false;
+    }
     access.onstatechange = refresh;
     refresh();
-    notify('MIDI connected · keys play Synth; right-click a knob to Learn');
+    notify(
+      sysexAllowed
+        ? 'MIDI connected · keys play Synth; right-click a knob to Learn'
+        : 'MIDI connected without SysEx permission · keys and Learn work; the MPK display and lights are unavailable',
+    );
+    window.dispatchEvent(new Event('afterhours:mididevices'));
   }
   P.store.subscribe((next, reason) => {
     const previousProfile = state.midi.profile;
@@ -377,6 +390,9 @@ window.AfterhoursLiveMIDI = (() => {
   });
   return {
     connect,
+    get sysex() {
+      return sysexAllowed;
+    },
     receive,
     learn,
     skip: advanceLearning,

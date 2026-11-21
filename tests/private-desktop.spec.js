@@ -98,7 +98,16 @@ test('private desktop preserves every project, original order, tour and required
         const migrated = structuredClone(p.project);
         if (migrated.performance && !migrated.performance.midi)
           migrated.performance.midi = {profile: 'generic', knobBank: 'synth', padMode: 'drums', native: false};
-        if (migrated.performance?.midi) migrated.performance.midi.native = migrated.performance.midi.native === true;
+        if (migrated.performance?.midi) {
+          migrated.performance.midi.native = migrated.performance.midi.native === true;
+          migrated.performance.midi.pads ??= Array.from({length: 16}, (_, i) => i);
+        }
+        // Older mappings gain the message type, number and knob mode defaults.
+        for (const m of migrated.performance?.mappings || []) {
+          m.type ??= 'cc';
+          m.number ??= 0;
+          m.mode ??= 'absolute';
+        }
         for (const lane of migrated.performance?.mixer?.lanes || []) if (lane.drive === undefined) lane.drive = 0;
         const validated = Groove.validate(p.project);
         // Legacy projects gain default device fields and neutral lane drive; musical data stays identical.

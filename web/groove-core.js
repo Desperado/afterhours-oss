@@ -102,6 +102,41 @@
     }
     return {length: 32, tracks};
   }
+  // One step from untrusted data: projects, imports and recorded step edits in takes.
+  function cleanStep(s) {
+    if (!s || typeof s !== 'object') return step();
+    const locks = {};
+    for (const k of lockKeys)
+      if (s.locks && Number.isFinite(s.locks[k])) locks[k] = number(s.locks[k], controls[k][1], controls[k][2], 0);
+    return {
+      on: s.on === true,
+      velocity: integer(s.velocity, 1, 127, 100),
+      chance: number(s.chance, 0, 100, 100),
+      micro: number(s.micro, -0.4, 0.4, 0),
+      repeat: integer(s.repeat, 1, 4, 1),
+      gate: number(s.gate, 0.1, 8, 0.7),
+      condition: choice(s.condition, ['always', '1:2', '2:2', 'fill', '!fill'], 'always'),
+      locks,
+      ...(Array.isArray(s.bend) &&
+      s.bend.length >= 2 &&
+      s.bend.length <= 16 &&
+      s.bend[0]?.[0] === 0 &&
+      s.bend.at(-1)?.[0] === 1 &&
+      s.bend.every(
+        (p, i) =>
+          Array.isArray(p) &&
+          p.length === 2 &&
+          Number.isFinite(p[0]) &&
+          Number.isFinite(p[1]) &&
+          p[0] >= 0 &&
+          p[0] <= 1 &&
+          Math.abs(p[1]) <= 2400 &&
+          (!i || p[0] > s.bend[i - 1][0]),
+      )
+        ? {bend: s.bend.map(p => [...p])}
+        : {}),
+    };
+  }
   function project() {
     return {
       version: 1,
@@ -195,41 +230,7 @@
           }
           if (!t || !Array.isArray(t.steps) || t.steps.length !== 64) throw new Error('Each track needs 64 steps.');
           const out = sound(t, i);
-          out.steps = t.steps.map(s => {
-            if (!s || typeof s !== 'object') return step();
-            const locks = {};
-            for (const k of lockKeys)
-              if (s.locks && Number.isFinite(s.locks[k]))
-                locks[k] = number(s.locks[k], controls[k][1], controls[k][2], out[k]);
-            return {
-              on: s.on === true,
-              velocity: integer(s.velocity, 1, 127, 100),
-              chance: number(s.chance, 0, 100, 100),
-              micro: number(s.micro, -0.4, 0.4, 0),
-              repeat: integer(s.repeat, 1, 4, 1),
-              gate: number(s.gate, 0.1, 8, 0.7),
-              condition: choice(s.condition, ['always', '1:2', '2:2', 'fill', '!fill'], 'always'),
-              locks,
-              ...(Array.isArray(s.bend) &&
-              s.bend.length >= 2 &&
-              s.bend.length <= 16 &&
-              s.bend[0]?.[0] === 0 &&
-              s.bend.at(-1)?.[0] === 1 &&
-              s.bend.every(
-                (p, i) =>
-                  Array.isArray(p) &&
-                  p.length === 2 &&
-                  Number.isFinite(p[0]) &&
-                  Number.isFinite(p[1]) &&
-                  p[0] >= 0 &&
-                  p[0] <= 1 &&
-                  Math.abs(p[1]) <= 2400 &&
-                  (!i || p[0] > s.bend[i - 1][0]),
-              )
-                ? {bend: s.bend.map(p => [...p])}
-                : {}),
-            };
-          });
+          out.steps = t.steps.map(cleanStep);
           return out;
         }),
       };
@@ -407,6 +408,7 @@
   }
   const api = {
     step,
+    cleanStep,
     serialize,
     trackCount,
     machines,

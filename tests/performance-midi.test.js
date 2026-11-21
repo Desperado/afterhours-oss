@@ -434,3 +434,32 @@ test('learned absolute track knobs rearm pickup when selecting a different track
   M.receive(keys, [176, 21, 64]);
   assert.ok(App.track().cutoff < 9000);
 });
+test('MIDI clock sends Start for a late first poll of a fresh run, and aligns Continue to the next sixteenth', () => {
+  const Clock = require('../web/performance-midi-clock.js');
+  const sent = [],
+    clock = new Clock();
+  clock.select({send: (bytes, at) => sent.push({bytes, at}), clear() {}});
+  // At 240 BPM a 25 ms poll is already 0.1 beat into the run.
+  clock.tick({running: true, run: 1, startBeat: 0, beat: 0.1, bpm: 240}, 100);
+  assert.deepEqual(sent[0].bytes, [0xfa]);
+  assert.equal(sent.filter(m => m.bytes[0] === 0xf8 && m.at === 100).length, 3);
+  // A resumed run at beat 8.13 announces position 8.25 and its first pulse belongs to that sixteenth.
+  sent.length = 0;
+  clock.tick({running: true, run: 2, startBeat: 8.13, beat: 8.13, bpm: 120}, 5000);
+  // The previous run is stopped first.
+  assert.deepEqual(
+    sent.slice(0, 3).map(m => m.bytes),
+    [[0xfc], [0xf2, 33, 0], [0xfb]],
+  );
+  assert.equal(sent.filter(m => m.bytes[0] === 0xf8).length, 0);
+  clock.tick({running: true, run: 2, startBeat: 8.13, beat: 8.21, bpm: 120}, 5040);
+  const first = sent.find(m => m.bytes[0] === 0xf8);
+  assert.ok(Math.abs(first.at - (5000 + (8.25 - 8.13) * 500)) < 0.001);
+  // Restarting from zero during playback is a new run: Stop, then Start.
+  sent.length = 0;
+  clock.tick({running: true, run: 3, startBeat: 0, beat: 0, bpm: 120}, 6000);
+  assert.deepEqual(
+    sent.slice(0, 2).map(m => m.bytes),
+    [[0xfc], [0xfa]],
+  );
+});

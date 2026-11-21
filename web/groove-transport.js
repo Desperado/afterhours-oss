@@ -140,6 +140,9 @@
       S.songOffset = resume?.songOffset ?? S.songStart;
       S.sectionJump = null;
       S.running = true;
+      // Each run is numbered, so MIDI clock output can tell a fresh start from a resume.
+      S.run = (S.run || 0) + 1;
+      S.runStartBeat = (resume?.offsetTicks || 0) / 8;
       timer = setInterval(schedule, 20);
       schedule();
       ui.renderPatterns();
@@ -173,6 +176,8 @@
     S.queued = null;
     if (S.running && S.engine) {
       S.engine.stop();
+      S.run = (S.run || 0) + 1;
+      S.runStartBeat = 0;
       S.tick = 0;
       S.loopOrigin = 0;
       S.playing = S.data.active;

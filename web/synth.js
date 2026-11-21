@@ -71,7 +71,8 @@
     $('follow').checked = matching.follow;
     $('midi-range').checked = matching.midiRange;
   }
-  function matchGroove() {
+  // force: match the selected lane even when it has no notes yet (recording keys into an empty track).
+  function matchGroove(force = false) {
     if (window.AfterhoursPerformanceStudio?.replaying) return;
     const grooveState = AfterhoursGrooveApp.S;
     if (grooveState.data.patterns[grooveState.data.active].tracks[grooveState.selected].machine === 'Sample') {
@@ -94,6 +95,15 @@
         name: chosen.name,
       };
     }
+    if (force && suggestion?.lane !== groove.selected)
+      suggestion = {
+        root: 0,
+        scale: 'chromatic',
+        octave: Math.max(1, Math.min(6, Math.floor(chosen.note / 12) - 1)),
+        lane: groove.selected,
+        estimated: false,
+        name: chosen.name,
+      };
     if (!suggestion) {
       $('match-status').textContent = 'No melodic notes in this project yet. Choose a key and octave manually.';
       return;
@@ -169,7 +179,8 @@
         `Manual keyboard settings · MIDI ${matching.midiRange ? 'C4 plays C' + octave : 'keeps its original octave'}.`;
     });
   window.addEventListener('afterhours:groove-selection', () => {
-    if (matching.follow) matchGroove();
+    // While recording keys, always sound like the newly selected track, even an empty one.
+    if (matching.follow) matchGroove(window.AfterhoursGrooveLive?.keysArmed === true);
   });
   // Update a matched part without restarting its held notes on each encoder tick.
   function refreshMatchedSound(event) {
@@ -203,8 +214,9 @@
     save();
   }
   window.addEventListener('afterhours:groove-sound', refreshMatchedSound);
+  // Macros, scenes, undo/redo and loads change the performance the matched sound plays through too.
   AfterhoursPerformance.store.subscribe((_, reason) => {
-    if (reason.startsWith('mixer-') || reason === 'replay') refreshMatchedSound();
+    if (!reason.startsWith('midi')) refreshMatchedSound();
   });
   const controls = [
     ['cutoff', 'Filter', 80, 16000, 10],
@@ -504,7 +516,15 @@
     engine?.dispose();
     engine = null;
   });
+  // Play the given Groove lane's sound on the keys, with a neutral key when it has no notes yet.
+  function followLane() {
+    matching.follow = true;
+    $('follow').checked = true;
+    matchGroove(true);
+    saveMatching();
+  }
   window.AfterhoursSynth = {
+    followLane,
     on,
     midiOn: (id, note, velocity) => play(id, note, velocity, true),
     off,

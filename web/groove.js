@@ -37,60 +37,75 @@
   }
   $g('preset').addEventListener('change', describePreset);
   describePreset();
+  // Undo/redo groups of recorded steps, per project (see take() below).
+  let takes = [],
+    redos = [];
   // Replace the session with a new project; the first replaced session stays restorable.
-  function replaceProject(next) {
+  // All or nothing: if the new project cannot be saved, the current one is put back untouched.
+  function replaceProject(next, {songMode = !!next.arrangement?.length, preset = null} = {}) {
+    const previous = {
+      data: S.data,
+      songMode: S.songMode,
+      songStart: S.songStart,
+      songOffset: S.songOffset,
+      page: S.page,
+      selected: S.selected,
+      selectedStep: S.selectedStep,
+      loadedPreset: S.loadedPreset,
+    };
+    let performance = null;
     try {
+      performance = S.data.performance = AfterhoursPerformance.project();
       // Keep the original session across multiple preset auditions and app restarts.
-      S.data.performance = AfterhoursPerformance.project();
       if (!localStorage.getItem(App.keys.backup)) localStorage.setItem(App.keys.backup, G.serialize(S.data));
       transport.stop();
       recordingSync.unlink();
       S.songStart = S.songOffset = 0;
       S.data = next;
       AfterhoursPerformance.load(S.data.performance);
-      S.songMode = true;
+      S.songMode = songMode;
       S.page = 0;
+      S.selected = 0;
       S.selectedStep = 0;
-      const saved = flushSave();
-      ui.renderAll();
-      Shell.touch('groove');
-      Shell.render();
-      if (saved) status(`${S.data.title} loaded · previous session backed up · press Play`, 'ok');
-      return saved;
+      // Tied to this project object, so imports, restores and jams clear it implicitly.
+      S.loadedPreset = preset ? {id: preset, data: next} : null;
+      if (!flushSave()) throw new Error('Session not saved');
     } catch {
+      Object.assign(S, previous);
+      if (performance) AfterhoursPerformance.load(performance);
+      ui.renderAll();
+      Shell.render();
       status('Could not save session · export it before loading a track', 'err');
       return false;
     }
+    takes = [];
+    redos = [];
+    ui.renderAll();
+    Shell.touch('groove');
+    Shell.render();
+    window.dispatchEvent(new Event('afterhours:project-replaced'));
+    status(`${S.data.title} loaded · previous session backed up · press Play`, 'ok');
+    return true;
   }
-  $g('load-preset').addEventListener('click', () => {
+  function loadPreset(id) {
     try {
-      replaceProject(P.create($g('preset').value));
+      return replaceProject(P.create(id), {preset: id});
     } catch {
       status('Could not load this track', 'err');
+      return false;
     }
-  });
+  }
+  $g('load-preset').addEventListener('click', () => loadPreset($g('preset').value));
   // An empty loop on the starter kit, keeping the tempo and the connected controller's setup.
   function blank(bpm = S.data.bpm) {
     const data = G.project();
     data.title = 'Нова пісня';
     data.bpm = Math.max(40, Math.min(240, Math.round(Number(bpm) || 100)));
     data.swing = 0;
-    for (const p of data.patterns)
-      for (const t of p.tracks)
-        for (const s of t.steps) {
-          s.on = false;
-          s.locks = {};
-          s.chance = 100;
-          s.repeat = 1;
-        }
+    for (const p of data.patterns) for (const t of p.tracks) t.steps = t.steps.map(() => G.step());
     const performance = AfterhoursPerformance.project();
     data.performance = AfterhoursPerformanceCore.validate({midi: performance.midi, mappings: performance.mappings});
-    const next = G.validate(data);
-    if (!replaceProject(next)) return false;
-    S.songMode = false;
-    S.selected = 0;
-    ui.renderAll();
-    return true;
+    return replaceProject(G.validate(data), {songMode: false});
   }
   $g('restore').addEventListener('click', () => {
     try {
@@ -265,17 +280,27 @@
   // Pads and keys write while playing; keys go to the selected track with their pitch and length.
   let keysArmed = false;
   const heldKeys = new Map();
+  // Step edits are gestures too, so a performance take replays the overdubs it captured.
+  const recordStep = (pattern, lane, index, step) =>
+    AfterhoursPerformance.event('stepWrite', {pattern, lane, index, step: G.clone(step)});
+  function setStep(step, value) {
+    for (const key of Object.keys(step)) delete step[key];
+    Object.assign(step, G.clone(value));
+  }
+  function finishKey(hit) {
+    if (!S.engine) return;
+    const seconds = S.engine.context.currentTime - hit.time;
+    hit.step.gate = Math.round(Math.max(0.1, Math.min(8, seconds / hit.stepSeconds)) * 100) / 100;
+    recordStep(hit.pattern, hit.lane, hit.index, hit.step);
+  }
   function armKeys(value = !keysArmed) {
-    keysArmed = value === true;
+    // Notes still held keep the length played so far.
+    for (const hit of heldKeys.values()) finishKey(hit);
+    if (heldKeys.size) save();
     heldKeys.clear();
-    if (keysArmed) {
-      // Play with the selected track's own sound, so what you hear is what gets recorded.
-      const follow = document.getElementById('synth-follow');
-      if (follow && !follow.checked) {
-        follow.checked = true;
-        follow.dispatchEvent(new Event('change'));
-      }
-    }
+    keysArmed = value === true;
+    // Play with the selected track's own sound, so what you hear is what gets recorded.
+    if (keysArmed) AfterhoursSynth.followLane?.(S.selected);
     window.dispatchEvent(new CustomEvent('afterhours:keys-record', {detail: {armed: keysArmed}}));
     return keysArmed;
   }
@@ -288,30 +313,37 @@
     } else if (type === 'noteOff') {
       const hit = heldKeys.get(value.id);
       heldKeys.delete(value.id);
-      if (!hit || !S.engine) return;
-      const seconds = S.engine.context.currentTime - hit.time;
-      hit.step.gate = Math.round(Math.max(0.1, Math.min(8, seconds / hit.stepSeconds)) * 100) / 100;
+      if (!hit) return;
+      finishKey(hit);
       save();
     }
   });
   // Undo groups, newest last: one per playback run and source (beat pads, or keys into one track),
   // so UNDO removes the last recorded part without stopping or touching the others.
-  let takes = [];
   function take(source, started) {
     takes = takes.filter(t => t.data === S.data).slice(-19);
-    const last = takes.at(-1);
-    if (last?.source === source && last.started === started) return last;
-    const next = {data: S.data, source, started, changes: new Map()};
-    takes.push(next);
-    return next;
+    redos = [];
+    let group = takes.find(t => t.source === source && t.started === started);
+    if (group) takes = takes.filter(t => t !== group);
+    else group = {data: S.data, source, started, changes: new Map()};
+    takes.push(group);
+    return group;
   }
   function clearTrack(lane = S.selected) {
     const track = S.data.patterns[S.data.active]?.tracks[lane];
     if (!track) return false;
     const group = take('clear', Symbol('clear'));
-    track.steps.forEach((step, i) => {
-      group.changes.set(i, {step, ...G.clone(step)});
-      Object.assign(step, {on: false, locks: {}});
+    track.steps.forEach((step, index) => {
+      group.changes.set(`${S.data.active}:${lane}:${index}`, {
+        pattern: S.data.active,
+        lane,
+        index,
+        step,
+        before: G.clone(step),
+      });
+      // Defaults, so chance, conditions or repeats from old notes cannot silence new hits.
+      setStep(step, G.step());
+      recordStep(S.data.active, lane, index, step);
     });
     save();
     ui.renderTrack();
@@ -329,7 +361,8 @@
       step = track.steps[index],
       group = take(Number.isFinite(note) ? 'keys:' + lane : 'pads', S.engine.started),
       key = `${frame.pattern}:${lane}:${index}`;
-    if (!group.changes.has(key)) group.changes.set(key, {step, ...G.clone(step)});
+    if (!group.changes.has(key))
+      group.changes.set(key, {pattern: frame.pattern, lane, index, step, before: G.clone(step)});
     step.on = true;
     step.velocity = Math.max(1, Math.min(127, Math.round((Number.isFinite(velocity) ? velocity : 0.8) * 127)));
     step.micro = 0;
@@ -337,6 +370,7 @@
       step.locks = {...step.locks, note: Math.max(24, Math.min(108, Math.round(note)))};
       step.gate = 0.7;
     }
+    recordStep(frame.pattern, lane, index, step);
     save();
     ui.renderTrack();
     return {
@@ -348,15 +382,43 @@
       stepSeconds: (frame.secondsPerBeat / 4) * (1 / track.rate),
     };
   }
+  function applyGroup(group, field) {
+    const steps = new Set([...group.changes.values()].map(c => c.step));
+    // A held key must not change a step after its recording is undone or redone.
+    for (const [id, hit] of heldKeys) if (steps.has(hit.step)) heldKeys.delete(id);
+    for (const change of group.changes.values()) {
+      setStep(change.step, change[field]);
+      recordStep(change.pattern, change.lane, change.index, change.step);
+    }
+    save();
+    ui.renderTrack();
+  }
   function undoHits() {
     takes = takes.filter(t => t.data === S.data && t.changes.size);
     const group = takes.pop();
     if (!group) return false;
-    // Restore in reverse so a step written twice ends at its first saved state.
-    for (const {step, ...previous} of [...group.changes.values()].reverse()) Object.assign(step, previous);
+    for (const change of group.changes.values()) change.after = G.clone(change.step);
+    applyGroup(group, 'before');
+    redos.push(group);
+    status(group.source === 'clear' ? 'Очищення трека скасовано' : 'Останній запис скасовано');
+    return true;
+  }
+  function redoHits() {
+    redos = redos.filter(t => t.data === S.data);
+    const group = redos.pop();
+    if (!group) return false;
+    applyGroup(group, 'after');
+    takes.push(group);
+    status(group.source === 'clear' ? 'Трек знову очищено' : 'Запис повернуто');
+    return true;
+  }
+  // Replays a recorded step edit from a performance take.
+  function writeStep({pattern, lane, index, step}) {
+    const target = S.data.patterns[pattern]?.tracks[lane]?.steps[index];
+    if (!target) return false;
+    setStep(target, G.cleanStep(step));
     save();
     ui.renderTrack();
-    status(group.source === 'clear' ? 'Очищення трека скасовано' : 'Останній запис скасовано');
     return true;
   }
   window.AfterhoursGrooveLive = {
@@ -392,14 +454,27 @@
     flush: flushSave,
     recordHit,
     undoHits,
+    redoHits,
+    writeStep,
     clearTrack,
     blank,
+    loadPreset,
+    get loadedPreset() {
+      return S.loadedPreset?.data === S.data ? S.loadedPreset.id : null;
+    },
     armKeys,
     get keysArmed() {
       return keysArmed;
     },
-    play: transport.play,
-    continue: transport.continuePlay,
+    // Starting Groove from anywhere makes it the shell's active engine, as the top transport does.
+    play: () => {
+      Shell.touch('groove');
+      return transport.play();
+    },
+    continue: () => {
+      Shell.touch('groove');
+      return transport.continuePlay();
+    },
     stop: transport.stop,
     audition: transport.auditionLane,
     selectLane: ui.selectLane,
@@ -411,6 +486,9 @@
       const frame = transport.audibleFrame();
       return {
         running: S.running,
+        starting: !!S.starting,
+        run: S.run ?? 0,
+        startBeat: S.runStartBeat ?? 0,
         ready: !!frame,
         bpm: frame ? 60 / frame.secondsPerBeat : S.data.bpm,
         beat: frame

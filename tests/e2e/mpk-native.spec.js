@@ -43,7 +43,8 @@ test.beforeEach(async ({page}) => {
     };
     Object.defineProperty(navigator, 'requestMIDIAccess', {
       value: async options => {
-        window.__sysex = options.sysex;
+        if (options?.sysex && window.__denySysex) throw new DOMException('SysEx denied', 'SecurityError');
+        window.__sysex = !!options?.sysex;
         return __midi;
       },
     });
@@ -611,4 +612,235 @@ test('build a song from scratch: empty loop, beat pads, recorded keys with pitch
   await page.locator('#song-undo').click();
   expect((await active())[0]).toBe(1);
   expect(errors).toEqual([]);
+});
+
+const shiftPress = (page, cc) =>
+  page.evaluate(cc => {
+    __send([176, 17, 127]);
+    __press(cc);
+    __send([176, 17, 0]);
+  }, cc);
+const steps = (page, lane) =>
+  page.evaluate(
+    lane =>
+      AfterhoursGrooveApp.S.data.patterns[AfterhoursGrooveApp.S.data.active].tracks[lane].steps.map(s => ({...s})),
+    lane,
+  );
+const onCount = async (page, lane) => (await steps(page, lane)).filter(s => s.on).length;
+async function playingBlankSong(page) {
+  page.on('dialog', d => d.accept());
+  await enable(page);
+  await page.locator('#song-new').click();
+  await page.locator('#song-beat').click();
+  await page.evaluate(() => AfterhoursGrooveLive.play());
+  await expect.poll(() => page.evaluate(() => AfterhoursGrooveLive.clock().ready)).toBe(true);
+}
+
+test('project replacement is all-or-nothing and drops a song browsed over the old project', async ({page}) => {
+  page.on('dialog', d => d.accept());
+  await enable(page);
+  await shiftPress(page, 81);
+  expect(await page.evaluate(() => AfterhoursSongWorkflow.pending)).toBeTruthy();
+  await page.locator('#song-new').click();
+  // The browsed song belonged to the replaced project; Play must not load it over the new song.
+  expect(await page.evaluate(() => AfterhoursSongWorkflow.pending)).toBeNull();
+  const result = await page.evaluate(() => {
+    const before = AfterhoursGrooveApp.S.data,
+      setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = () => {
+      throw new Error('quota');
+    };
+    try {
+      return {
+        ok: AfterhoursGrooveLive.loadPreset(AfterhoursPresets.catalog[0].id),
+        same: AfterhoursGrooveApp.S.data === before,
+      };
+    } finally {
+      Storage.prototype.setItem = setItem;
+    }
+  });
+  expect(result).toEqual({ok: false, same: true});
+  expect(await page.evaluate(() => AfterhoursGrooveApp.S.data.title)).toBe('Нова пісня');
+  // The loaded preset is tracked by id, not by matching its title.
+  const id = await page.evaluate(() => AfterhoursPresets.catalog[1].id);
+  expect(await page.evaluate(id => AfterhoursGrooveLive.loadPreset(id), id)).toBe(true);
+  await page.evaluate(() => (AfterhoursGrooveApp.S.data.title = 'Renamed'));
+  expect(await page.evaluate(() => AfterhoursGrooveLive.loadedPreset)).toBe(id);
+});
+
+test('Play/Stop loads a song browsed during playback, stops while samples prepare, and activates Groove', async ({
+  page,
+}) => {
+  await enable(page);
+  await page.evaluate(() => AfterhoursShell.setActive('recording'));
+  await page.evaluate(() => __press(76));
+  await expect.poll(() => page.evaluate(() => AfterhoursGrooveLive.clock().running)).toBe(true);
+  await expect(page.locator('#transport')).toHaveAttribute('aria-label', 'Groove transport');
+  await shiftPress(page, 81);
+  const chosen = await page.evaluate(() => AfterhoursSongWorkflow.pending);
+  await page.evaluate(() => __press(76));
+  await expect.poll(() => page.evaluate(() => AfterhoursGrooveApp.S.data.title)).toBe(chosen);
+  await expect.poll(() => page.evaluate(() => AfterhoursGrooveLive.clock().running)).toBe(true);
+  await page.evaluate(() => __press(76));
+  await expect.poll(() => page.evaluate(() => AfterhoursGrooveLive.clock().running)).toBe(false);
+  // While Play is still preparing, Play/Stop cancels it rather than starting a second time.
+  await page.evaluate(() => {
+    AfterhoursGrooveApp.S.starting = true;
+    __press(76);
+  });
+  await expect.poll(() => page.evaluate(() => AfterhoursGrooveApp.S.starting)).toBe(false);
+  expect(await page.evaluate(() => AfterhoursGrooveLive.clock().running)).toBe(false);
+});
+
+test('recorded undo groups merge per source, redo restores them, held keys and clears stay consistent', async ({
+  page,
+}) => {
+  await playingBlankSong(page);
+  const pad = () => page.evaluate(() => __send([153, 36, 100], 'daw'));
+  await pad();
+  await expect.poll(() => onCount(page, 0)).toBe(1);
+  await page.evaluate(() => {
+    AfterhoursGrooveLive.selectLane(4);
+    AfterhoursGrooveLive.armKeys(true);
+    __send([144, 43, 100], 'keys');
+  });
+  await expect.poll(() => onCount(page, 4)).toBe(1);
+  await page.evaluate(() => __send([128, 43, 0], 'keys'));
+  await page.waitForTimeout(300);
+  await pad();
+  await expect.poll(() => onCount(page, 0)).toBe(2);
+  // Both pad hits form one group: UNDO removes them together and keeps the keys.
+  await page.evaluate(() => __press(73));
+  expect(await onCount(page, 0)).toBe(0);
+  expect(await onCount(page, 4)).toBe(1);
+  // SHIFT + UNDO redoes the recording rather than an unrelated mixer change.
+  await shiftPress(page, 73);
+  expect(await onCount(page, 0)).toBe(2);
+  // Undo while a key is held: its release must not touch the restored step.
+  await page.evaluate(() => __send([144, 45, 100], 'keys'));
+  await expect.poll(() => onCount(page, 4)).toBeGreaterThan(0);
+  await page.evaluate(() => AfterhoursGrooveLive.undoHits());
+  const restored = await steps(page, 4);
+  await page.waitForTimeout(200);
+  await page.evaluate(() => __send([128, 45, 0], 'keys'));
+  expect(await steps(page, 4)).toEqual(restored);
+  // Disarming while a key is held keeps the length played so far.
+  await page.evaluate(() => __send([144, 47, 100], 'keys'));
+  await expect.poll(() => onCount(page, 4)).toBeGreaterThan(0);
+  await page.waitForTimeout(450);
+  await page.evaluate(() => AfterhoursGrooveLive.armKeys(false));
+  expect(Math.max(...(await steps(page, 4)).filter(s => s.on).map(s => s.gate))).toBeGreaterThan(1);
+  // Clearing resets every step field, so chance or conditions cannot silence new hits.
+  await page.evaluate(() => {
+    const step = AfterhoursGrooveApp.S.data.patterns[AfterhoursGrooveApp.S.data.active].tracks[0].steps[3];
+    Object.assign(step, {
+      chance: 0,
+      condition: 'fill',
+      repeat: 3,
+      bend: [
+        [0, 0],
+        [1, 200],
+      ],
+    });
+    AfterhoursGrooveLive.clearTrack(0);
+  });
+  const cleared = (await steps(page, 0))[3];
+  expect(cleared).toEqual(await page.evaluate(() => AfterhoursGroove.step()));
+});
+
+test('arming keys on an empty track plays that track; macros refresh the matched sound', async ({page}) => {
+  await playingBlankSong(page);
+  await page.evaluate(() => {
+    AfterhoursGrooveLive.selectLane(5);
+    AfterhoursGrooveLive.armKeys(true);
+  });
+  expect(await page.evaluate(() => [AfterhoursSynth.snapshot().family, AfterhoursSynth.snapshot().lane])).toEqual([
+    'groove',
+    5,
+  ]);
+  await page.evaluate(() =>
+    AfterhoursPerformance.store.update(s => {
+      s.macros[2] = 0.6;
+    }, 'macro-2'),
+  );
+  expect(await page.evaluate(() => AfterhoursSynth.snapshot().performance.macros[2])).toBe(0.6);
+});
+
+test('a performance take records and replays the pad overdub it captured', async ({page}) => {
+  await playingBlankSong(page);
+  await page.evaluate(() => __press(77));
+  await expect.poll(() => page.evaluate(() => AfterhoursPerformanceStudio.recording)).toBe(true);
+  await page.evaluate(() => __send([153, 36, 100], 'daw'));
+  await expect.poll(() => onCount(page, 0)).toBe(1);
+  await page.waitForTimeout(300);
+  await page.evaluate(() => __press(76));
+  await expect(page.locator('#performance-status')).toContainText('Take saved locally');
+  expect(await page.evaluate(() => AfterhoursPerformanceStudio.take.events.some(e => e.type === 'stepWrite'))).toBe(
+    true,
+  );
+  // The take's starting project had no hit; replay must write it again.
+  await page.evaluate(() => AfterhoursGrooveLive.clearTrack(0));
+  expect(await onCount(page, 0)).toBe(0);
+  // Replay restores the project afterwards, so observe the step write itself as it happens.
+  await page.evaluate(() => {
+    window.__replayed = [];
+    const write = AfterhoursGrooveLive.writeStep;
+    AfterhoursGrooveLive.writeStep = value => {
+      const ok = write(value);
+      const lane = AfterhoursGrooveApp.S.data.patterns[value.pattern].tracks[value.lane];
+      __replayed.push({ok, lane: value.lane, on: lane.steps.filter(s => s.on).length});
+      return ok;
+    };
+  });
+  await page.getByText('Gesture replay & editing', {exact: true}).click();
+  await page.locator('#performance-replay').click();
+  await expect.poll(() => page.evaluate(() => AfterhoursPerformanceStudio.replaying)).toBe(false);
+  expect(await page.evaluate(() => __replayed)).toContainEqual({ok: true, lane: 0, on: 1});
+});
+
+test('SHIFT wins over a held encoder; Stop finishes a starting take from MPK, song Stop or the top bar', async ({
+  page,
+}) => {
+  await enable(page);
+  const selected = await page.evaluate(() => AfterhoursGrooveApp.S.selected);
+  await page.evaluate(() => {
+    window.__jam = 0;
+    window.addEventListener('afterhours:midiaction', e => {
+      if (e.detail.target.startsWith('action.jam')) __jam++;
+    });
+    __send([176, 13, 127]);
+    __send([176, 17, 127]);
+    __send([153, 42, 100], 'daw');
+    __send([137, 42, 0], 'daw');
+    __send([176, 17, 0]);
+    __send([176, 13, 0]);
+  });
+  expect(await page.evaluate(() => [AfterhoursGrooveApp.S.selected, __jam])).toEqual([selected, 0]);
+  // Stop pressed while the take is still starting finishes it instead of being lost.
+  await page.evaluate(() => {
+    AfterhoursPerformanceStudio.record();
+    window.__stopped = AfterhoursPerformanceStudio.stopTake();
+  });
+  await page.evaluate(() => __stopped);
+  expect(await page.evaluate(() => AfterhoursPerformanceStudio.recording)).toBe(false);
+  await expect(page.locator('#performance-status')).toContainText('Take saved locally');
+  // The top Stop stays usable for a take even when the selected engine cannot stop.
+  await page.evaluate(() => AfterhoursShell.setActive('recording'));
+  await page.evaluate(() => AfterhoursPerformanceStudio.record());
+  await expect(page.locator('#transport-stop')).toBeEnabled();
+  await page.locator('#transport-stop').click();
+  await expect.poll(() => page.evaluate(() => AfterhoursPerformanceStudio.recording)).toBe(false);
+  // The song panel's Stop also finishes a take.
+  await page.evaluate(() => AfterhoursPerformanceStudio.record());
+  await page.locator('#song-stop').click();
+  await expect.poll(() => page.evaluate(() => AfterhoursPerformanceStudio.recording)).toBe(false);
+});
+
+test('without SysEx permission plain MIDI still connects and the MPK explains what is missing', async ({page}) => {
+  await page.evaluate(() => (window.__denySysex = true));
+  await page.locator('#performance-midi-native').click();
+  await expect.poll(() => page.evaluate(() => AfterhoursLiveMIDI.sysex)).toBe(false);
+  await expect.poll(() => page.evaluate(() => AfterhoursMPK.status)).toContain('SysEx');
+  await page.evaluate(() => __send([144, 60, 100], 'keys'));
+  await expect.poll(() => page.evaluate(() => AfterhoursSynth.held().length)).toBe(1);
 });

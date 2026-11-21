@@ -247,7 +247,7 @@
     s.performance = {bite, drift, width, space, pulse};
     return s;
   }
-  function take(raw, validateProject, validateGrooveInstrument) {
+  function take(raw, validateProject, validateGrooveInstrument, cleanStep) {
     if (
       !raw ||
       raw.version !== 1 ||
@@ -332,10 +332,19 @@
             value = e.value === true;
             break;
           case 'pattern':
-            value = Math.round(num(e.value, 0, 31, 0));
+            value = Math.round(num(e.value, 0, 63, 0));
             break;
           case 'section':
-            value = Math.round(num(e.value, 0, 31, 0));
+            value = Math.round(num(e.value, 0, 63, 0));
+            break;
+          case 'stepWrite':
+            if (!cleanStep) throw new Error('Step edits need the Groove step validator');
+            value = {
+              pattern: Math.round(num(e.value?.pattern, 0, 63, 0)),
+              lane: Math.round(num(e.value?.lane, 0, 15, 0)),
+              index: Math.round(num(e.value?.index, 0, 63, 0)),
+              step: cleanStep(e.value?.step),
+            };
             break;
           case 'patch':
             value = patch(e.value);

@@ -827,13 +827,26 @@
     return {groove, synth: AfterhoursSynth.snapshot(), held: AfterhoursSynth.held(), bend: C.snapshot().bend};
   }
   function validateTake(raw) {
-    const value = Core.take(raw, AfterhoursGroove.validate, AfterhoursGrooveInstrument.validate),
+    const value = Core.take(
+        raw,
+        AfterhoursGroove.validate,
+        AfterhoursGrooveInstrument.validate,
+        AfterhoursGroove.cleanStep,
+      ),
       ids = new Set(['groove-part', ...AfterhoursSynthAudio.presets.map(p => p.id)]);
     if (!ids.has(value.initial.synth.id) || value.events.some(e => e.type === 'patch' && !ids.has(e.value.id)))
       throw new Error('This take contains an unknown synth patch');
     return value;
   }
-  async function startRecording() {
+  // Stop pressed while a take is still starting waits for it, then finishes it, instead of being lost.
+  let startingTake = null;
+  function startRecording() {
+    startingTake ||= beginRecording().finally(() => {
+      startingTake = null;
+    });
+    return startingTake;
+  }
+  async function beginRecording() {
     if (busy || recording || replaying || !libraryReady || unsaved) return;
     busy = true;
     paintTake();
@@ -887,6 +900,7 @@
   );
   $('record').addEventListener('click', attempt(startRecording));
   async function stopTake() {
+    if (startingTake) await startingTake.catch(() => {});
     if (recording) await finishRecording();
     if (replaying) await stopReplay();
   }
@@ -898,6 +912,8 @@
     }),
   );
   // The main transport Stop must end a take too; the take controls live in a collapsed panel.
+  // Keep it enabled for an active take or replay even when the selected engine cannot stop.
+  S.holdStop(() => !!recording || replaying || !!startingTake);
   document.getElementById('transport-stop').addEventListener('click', attempt(stopTake));
   window.addEventListener('afterhours:recordlimit', () => finishRecording().catch(e => message(e.message, true)));
   const takeFilename = () =>
@@ -1068,6 +1084,9 @@
         break;
       case 'synthControl':
         AfterhoursSynth.control(v.key, v.value);
+        break;
+      case 'stepWrite':
+        AfterhoursGrooveLive.writeStep(v);
         break;
       case 'trackControl':
         P.targets.get('mpk.track.' + v.path)?.set(v.value, {pattern: v.pattern, lane: v.lane, replay: true});
@@ -1299,6 +1318,11 @@
     if (audioURL) URL.revokeObjectURL(audioURL);
   });
   let taps = [];
+  // Playing, or still preparing samples to play: Play/Stop must stop rather than start again.
+  const grooveActive = () => {
+    const clock = AfterhoursGrooveLive.clock();
+    return clock.running || clock.starting;
+  };
   window.addEventListener('afterhours:midiaction', e => {
     if (replaying) return;
     const {target, velocity, direction} = e.detail;
@@ -1363,7 +1387,7 @@
           await AfterhoursGrooveLive.continue();
           break;
         case 'action.play':
-          if (!AfterhoursGrooveLive.clock().running) {
+          if (!grooveActive()) {
             AfterhoursSongWorkflow.loadPending();
             await AfterhoursGrooveLive.play();
           }
@@ -1374,13 +1398,14 @@
           break;
         case 'action.play-stop':
           // Stop also ends a take, as in a DAW; otherwise recording would continue silently.
-          if (AfterhoursGrooveLive.clock().running) {
+          // A song chosen with SHIFT + BANK while playing replaces the current one at once.
+          if (grooveActive()) {
             AfterhoursGrooveLive.stop();
             await stopTake();
-          } else {
-            AfterhoursSongWorkflow.loadPending();
-            await AfterhoursGrooveLive.play();
+            if (!AfterhoursSongWorkflow.pending) break;
           }
+          AfterhoursSongWorkflow.loadPending();
+          await AfterhoursGrooveLive.play();
           break;
         case 'action.rewind':
           S.getEngine('groove').start();
@@ -1393,7 +1418,7 @@
           if (!window.AfterhoursJam?.undoEdit() && !AfterhoursGrooveLive.undoHits()) store.undo();
           break;
         case 'action.redo':
-          if (!window.AfterhoursJam?.undoEdit(true)) store.redo();
+          if (!window.AfterhoursJam?.undoEdit(true) && !AfterhoursGrooveLive.redoHits()) store.redo();
           break;
         case 'action.panic':
           window.AfterhoursJam?.cancel();
@@ -1430,6 +1455,7 @@
   window.AfterhoursPerformanceStudio = {
     record: startRecording,
     stop: finishRecording,
+    stopTake,
     replay: startReplay,
     stopReplay,
     get take() {
