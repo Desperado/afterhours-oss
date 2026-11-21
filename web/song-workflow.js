@@ -9,6 +9,8 @@
   const Presets = AfterhoursPresets,
     App = AfterhoursGrooveApp,
     preset = document.getElementById('groove-preset');
+  const t = (s, ...a) =>
+    globalThis.AfterhoursI18n?.t ? globalThis.AfterhoursI18n.t(s, ...a) : s.replace(/\{(\d+)\}/g, (_, i) => a[i]);
   // A song browsed on the MPK waits here; Play loads it, so browsing never replaces the session.
   // It belongs to the project it was chosen over: a new, imported or restored project drops it.
   let pending = null;
@@ -23,19 +25,15 @@
     pending = next.id === loaded ? null : {id: next.id, over: App.S.data};
     preset.value = next.id;
     preset.dispatchEvent(new Event('change'));
-    status(
-      pending
-        ? `Вибрано «${next.title}» · натисни Play/Stop, щоб завантажити й запустити`
-        : `«${next.title}» уже завантажена`,
-    );
+    status(pending ? `Selected “${next.title}” · press Play/Stop to load and play` : `Already loaded: “${next.title}”`);
   }
   function loadPending() {
     const id = current();
     pending = null;
     if (!id) return false;
     preset.value = id;
-    if (!Live.loadPreset(id)) throw new Error('Не вдалося завантажити пісню · спершу збережи поточний проєкт');
-    status(`«${title(id)}» завантажено`);
+    if (!Live.loadPreset(id)) throw new Error('Could not load the song · save the current project first');
+    status(`Loaded “${title(id)}”`);
     return true;
   }
   document.getElementById('groove-load-preset').addEventListener('click', () => {
@@ -61,7 +59,7 @@
         loadPending();
         await Live.play();
       }
-      status('Пісня грає · грай на MPK поверх неї');
+      status('Song playing · play the MPK over it');
     } catch (error) {
       status(error.message);
     }
@@ -71,7 +69,7 @@
     try {
       // Also finish a performance take or stop its replay, like the top Stop.
       await window.AfterhoursPerformanceStudio?.stopTake();
-      status('Зупинено');
+      status('Stopped');
     } catch (error) {
       status(error.message);
     }
@@ -79,11 +77,11 @@
   $('new').addEventListener('click', () => {
     if (
       !window.confirm(
-        'Почати нову порожню пісню? Поточна заміниться. Якщо вона потрібна, спершу натисни «Зберегти пісню».',
+        t('Start a new empty song? The current one will be replaced. If you need it, click “Save song” first.'),
       )
     )
       return;
-    if (Live.blank()) status('Нова пісня · увімкни метроном, ▶ Грати й записуй педами або клавішами');
+    if (Live.blank()) status('New song · turn on the metronome, press ▶ Play and record with pads or keys');
   });
   $('metronome').addEventListener('click', () =>
     window.dispatchEvent(new CustomEvent('afterhours:midiaction', {detail: {target: 'action.metronome'}})),
@@ -92,25 +90,25 @@
     AfterhoursPerformance.store.update(s => {
       s.midi.padMode = 'beat';
     }, 'midi-profile');
-    status('Педи грають треки й записують удари, коли пісня грає');
+    status('Pads play tracks and record hits while the song plays');
   });
   $('keys').addEventListener('click', () => {
     const armed = Live.armKeys();
-    status(armed ? `Запис клавіш у трек ${App.S.selected + 1} · натисни ▶ Грати й грай` : 'Запис клавіш вимкнено');
+    status(armed ? `Recording keys into track ${App.S.selected + 1} · press ▶ Play and play` : 'Keys recording off');
   });
   $('clear').addEventListener('click', () => Live.clearTrack());
   $('undo').addEventListener('click', () => {
-    if (!Live.undoHits()) status('Немає запису, який можна скасувати');
+    if (!Live.undoHits()) status('No recording to undo');
   });
   window.addEventListener('afterhours:midiaction', e => {
     if (e.detail.target !== 'action.keys-record' || window.AfterhoursPerformanceStudio?.replaying) return;
     const armed = Live.armKeys();
-    status(armed ? `Запис клавіш у трек ${App.S.selected + 1}` : 'Запис клавіш вимкнено');
+    status(armed ? `Recording keys into track ${App.S.selected + 1}` : 'Keys recording off');
   });
   $('open').addEventListener('click', () => document.getElementById('groove-import').click());
   $('save').addEventListener('click', () => {
     document.getElementById('groove-project').click();
-    status('JSON пісні збережено у завантаження');
+    status('Song JSON saved to Downloads');
   });
   $('instrument').replaceChildren(
     ...Synth.presets().map(({id, name}) => {

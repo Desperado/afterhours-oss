@@ -6,6 +6,8 @@
     G = AfterhoursGroove,
     P = AfterhoursPresets,
     Shell = AfterhoursShell;
+  const t = (s, ...a) =>
+    globalThis.AfterhoursI18n?.t ? globalThis.AfterhoursI18n.t(s, ...a) : s.replace(/\{(\d+)\}/g, (_, i) => a[i]);
   const visual = new AfterhoursVisual($g('visual'));
   const meterStyle = $g('meter-style');
   try {
@@ -99,7 +101,7 @@
   // An empty loop on the starter kit, keeping the tempo and the connected controller's setup.
   function blank(bpm = S.data.bpm) {
     const data = G.project();
-    data.title = 'Нова пісня';
+    data.title = t('New song');
     data.bpm = Math.max(40, Math.min(240, Math.round(Number(bpm) || 100)));
     data.swing = 0;
     for (const p of data.patterns) for (const t of p.tracks) t.steps = t.steps.map(() => G.step());
@@ -347,7 +349,7 @@
     });
     save();
     ui.renderTrack();
-    status(`Трек ${lane + 1} очищено · UNDO поверне ноти`);
+    status(`Track ${lane + 1} cleared · UNDO restores the notes`);
     return true;
   }
   // Hits while playing are written to the nearest step of the pattern being heard.
@@ -400,7 +402,7 @@
     for (const change of group.changes.values()) change.after = G.clone(change.step);
     applyGroup(group, 'before');
     redos.push(group);
-    status(group.source === 'clear' ? 'Очищення трека скасовано' : 'Останній запис скасовано');
+    status(group.source === 'clear' ? 'Track clear undone' : 'Last recording undone');
     return true;
   }
   function redoHits() {
@@ -409,7 +411,7 @@
     if (!group) return false;
     applyGroup(group, 'after');
     takes.push(group);
-    status(group.source === 'clear' ? 'Трек знову очищено' : 'Запис повернуто');
+    status(group.source === 'clear' ? 'Track cleared again' : 'Recording restored');
     return true;
   }
   // Replays a recorded step edit from a performance take.

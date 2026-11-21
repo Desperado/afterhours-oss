@@ -220,6 +220,7 @@
         : `Morphing to ${s.scenes[i].name}`;
     });
     recall.setAttribute('aria-label', 'Recall scene ' + (i + 1));
+    recall.dataset.sceneRecall = String(i);
     const capture = button('Capture', () =>
       store.update(s => {
         s.scenes[i] = {
@@ -968,7 +969,10 @@
         recording ||
         replaying ||
         !window.confirm(
-          `Delete “${take.name}” and its parts? This cannot be undone. Other takes will stay in your library.`,
+          AfterhoursI18n.t(
+            'Delete “{0}” and its parts? This cannot be undone. Other takes will stay in your library.',
+            take.name,
+          ),
         )
       )
         return;
@@ -1344,7 +1348,7 @@
             await AfterhoursGrooveLive.audition(pads[lane], velocity);
             break;
           case 'scenes':
-            if (lane < 8) document.querySelector(`[aria-label="Recall scene ${lane + 1}"]`).click();
+            if (lane < 8) document.querySelector(`[data-scene-recall="${lane}"]`).click();
             else
               store.update(s => {
                 s.mixer.lanes[lane - 8].mute = !s.mixer.lanes[lane - 8].mute;
@@ -1359,7 +1363,7 @@
         return;
       }
       if (target.startsWith('action.scene.')) {
-        document.querySelector(`[aria-label="Recall scene ${Number(target.split('.').at(-1)) + 1}"]`).click();
+        document.querySelector(`[data-scene-recall="${Number(target.split('.').at(-1))}"]`).click();
         return;
       }
       switch (target) {

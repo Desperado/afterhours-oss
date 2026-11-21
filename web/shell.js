@@ -56,11 +56,19 @@ window.AfterhoursShell = (() => {
   }
 
   // Called ten times a second: touch the DOM only when something changed, so idle frames don't repaint.
+  // Compare with the last value written, not the DOM: a translated interface shows other text.
+  const written = new WeakMap();
   const setText = (node, text) => {
-    if (node.textContent !== text) node.textContent = text;
+    if (written.get(node) === text) return;
+    written.set(node, text);
+    node.textContent = text;
   };
+  const attrs = new WeakMap();
   const setAttr = (node, name, value) => {
-    if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+    const last = attrs.get(node) || attrs.set(node, {}).get(node);
+    if (last[name] === value) return;
+    last[name] = value;
+    node.setAttribute(name, value);
   };
   function render() {
     const engine = engines[active];
@@ -253,6 +261,8 @@ window.AfterhoursShell = (() => {
     );
   }
   function init() {
+    // The desktop shell draws its window buttons over the strip.
+    if (location.protocol === 'afterhours:') document.documentElement.classList.add('is-desktop');
     byId('transport-play').addEventListener('click', () => {
       const engine = engines[active];
       if (!engine) return;
@@ -286,6 +296,17 @@ window.AfterhoursShell = (() => {
     });
     for (const button of document.querySelectorAll('[data-ws]'))
       button.addEventListener('click', () => show(button.dataset.ws));
+    // Perform is one long panel: its section links open the target and bring it into view.
+    byId('performance-nav')?.addEventListener('click', event => {
+      const link = event.target.closest('a[href^="#"]');
+      if (!link) return;
+      event.preventDefault();
+      const target = byId(link.getAttribute('href').slice(1));
+      if (!target) return;
+      if (target.tagName === 'DETAILS') target.open = true;
+      target.scrollIntoView({block: 'start', behavior: 'smooth'});
+      for (const other of link.parentElement.children) other.classList.toggle('is-current', other === link);
+    });
     byId('help-open').addEventListener('click', () => byId('help-sheet').showModal());
     byId('help-close').addEventListener('click', () => byId('help-sheet').close());
     document.addEventListener('keydown', event => {

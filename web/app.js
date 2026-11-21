@@ -306,7 +306,7 @@ function renderSaved() {
       const item = element('button', 'saved-item');
       item.type = 'button';
       item.setAttribute('aria-current', String(state.view === 'report' && state.session?.id === session.id));
-      const when = new Date(session.created).toLocaleString(undefined, {
+      const when = new Date(session.created).toLocaleString(window.AfterhoursI18n?.lang === 'uk' ? 'uk' : undefined, {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
