@@ -59,7 +59,7 @@ test.beforeEach(async ({page}) => {
 });
 async function enable(page) {
   await page.locator('#performance-midi-native').click();
-  await expect(page.locator('#performance-midi-hardware')).toContainText('MPK підключено');
+  await expect(page.locator('#performance-midi-hardware')).toContainText('MPK connected');
 }
 test('native profile routes exact encoder, SHIFT, knobs and both pad banks; owns only verified DAW feedback', async ({
   page,
@@ -257,20 +257,20 @@ test('device profile survives song replacement and restart; feedback waits for i
     true,
   );
   await page.reload();
-  await expect.poll(() => page.evaluate(() => AfterhoursMPK.status)).toContain('MPK підключено');
+  await expect.poll(() => page.evaluate(() => AfterhoursMPK.status)).toContain('MPK connected');
   await page.evaluate(() => {
     __mode = 1;
     AfterhoursMPK.reconnect();
   });
-  await expect.poll(() => page.evaluate(() => AfterhoursMPK.status)).toContain('кнопку PLUGIN/DAW');
+  await expect.poll(() => page.evaluate(() => AfterhoursMPK.status)).toContain('Press PLUGIN/DAW');
   const before = await page.evaluate(() => __messages.length);
   await page.waitForTimeout(400);
   expect(await page.evaluate(() => __messages.length)).toBe(before);
   // Pressing PLUGIN/DAW on the MPK reports DAW mode again; Afterhours takes the screen back by itself.
   await page.evaluate(() => __send([240, 71, 0, 3, 45, 0, 1, 0, 247]));
-  await expect.poll(() => page.evaluate(() => AfterhoursMPK.status)).toContain('MPK підключено');
+  await expect.poll(() => page.evaluate(() => AfterhoursMPK.status)).toContain('MPK connected');
   await page.evaluate(() => __send([240, 71, 0, 3, 45, 0, 1, 1, 247]));
-  await expect.poll(() => page.evaluate(() => AfterhoursMPK.status)).toContain('кнопку PLUGIN/DAW');
+  await expect.poll(() => page.evaluate(() => AfterhoursMPK.status)).toContain('Press PLUGIN/DAW');
   await page.evaluate(() => {
     __respond = false;
     __messages = [];
@@ -334,7 +334,7 @@ test('all eight encoders edit selected sound, mixer, motion and rhythm banks and
   for (const key of ['cutoff', 'shape', 'color', 'sweep', 'contour', 'decay', 'volume', 'pan'])
     expect(result.edited[key]).toBeGreaterThan(result.initial[key]);
   expect(result.fine).toBeCloseTo((result.edited.cutoff - result.initial.cutoff) / 4);
-  await expect(page.locator('#performance-midi-control-context')).toContainText('Трек 5');
+  await expect(page.locator('#performance-midi-control-context')).toContainText('Track 5');
   await page.evaluate(() => __press(81));
   await expect(page.locator('#performance-midi-bank')).toHaveValue('track-mix');
   const mixer = await page.evaluate(() => {
@@ -453,7 +453,7 @@ test('Stop ends a take from MPK or the top transport, and the jam explains how t
   await page.evaluate(() => __press(77));
   await expect.poll(() => page.evaluate(() => AfterhoursPerformanceStudio.recording)).toBe(true);
   await page.locator('#jam-listen').click();
-  await expect(page.locator('#jam-status')).toContainText('Іде запис. Натисни Stop');
+  await expect(page.locator('#jam-status')).toContainText('Recording in progress. Press Stop');
   // Play/Stop starts the song under the take, then stops both.
   await page.evaluate(() => __press(76));
   await expect.poll(() => page.evaluate(() => AfterhoursGrooveLive.clock().running)).toBe(true);
@@ -478,7 +478,7 @@ test('macro panel switches the eight MPK knobs to the visible macros', async ({p
   expect(await page.evaluate(() => AfterhoursPerformance.store.state.macros[0])).toBe(0);
   await page.locator('#performance-midi-macros').click();
   await expect(page.locator('#performance-midi-macros')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.locator('#performance-midi-macros-status')).toContainText('керують цими макросами');
+  await expect(page.locator('#performance-midi-macros-status')).toContainText('control these macros');
   await page.evaluate(() => __send([176, 24, 10]));
   await expect.poll(() => page.evaluate(() => AfterhoursPerformance.store.state.macros[0])).toBeGreaterThan(0);
   await expect(page.locator('#performance-macros')).not.toContainText('Weight0%');
@@ -524,10 +524,10 @@ test('beat pads play any assigned track and record hits into the playing pattern
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   await enable(page);
-  await page.getByText('Педи → треки · режим «Біт»').click();
+  await page.getByText('Pads → tracks · Beat mode').click();
   await page.locator('#performance-midi-beat').click();
   await expect(page.locator('#performance-midi-pads')).toHaveValue('beat');
-  await page.getByLabel('Пед A1 · трек').selectOption('5');
+  await page.getByLabel('Pad A1 · track').selectOption('5');
   expect(await page.evaluate(() => AfterhoursPerformance.store.state.midi.pads.slice(0, 3))).toEqual([5, 1, 2]);
   const lane5 = () =>
     page.evaluate(() => {
@@ -564,7 +564,7 @@ test('build a song from scratch: empty loop, beat pads, recorded keys with pitch
   page.on('dialog', d => d.accept());
   await enable(page);
   await page.locator('#song-new').click();
-  await expect(page.locator('#song-status')).toContainText('Нова пісня');
+  await expect(page.locator('#song-status')).toContainText('New song');
   const active = () =>
     page.evaluate(() =>
       AfterhoursGrooveApp.S.data.patterns[AfterhoursGrooveApp.S.data.active].tracks.map(
@@ -572,7 +572,7 @@ test('build a song from scratch: empty loop, beat pads, recorded keys with pitch
       ),
     );
   expect((await active()).every(n => n === 0)).toBe(true);
-  expect(await page.evaluate(() => AfterhoursGrooveApp.S.data.title)).toBe('Нова пісня');
+  expect(await page.evaluate(() => AfterhoursGrooveApp.S.data.title)).toBe('New song');
   expect(await page.evaluate(() => AfterhoursPerformance.store.state.midi.native)).toBe(true);
   await page.locator('#song-beat').click();
   await expect(page.locator('#song-beat')).toHaveAttribute('aria-pressed', 'true');
@@ -660,7 +660,7 @@ test('project replacement is all-or-nothing and drops a song browsed over the ol
     }
   });
   expect(result).toEqual({ok: false, same: true});
-  expect(await page.evaluate(() => AfterhoursGrooveApp.S.data.title)).toBe('Нова пісня');
+  expect(await page.evaluate(() => AfterhoursGrooveApp.S.data.title)).toBe('New song');
   // The loaded preset is tracked by id, not by matching its title.
   const id = await page.evaluate(() => AfterhoursPresets.catalog[1].id);
   expect(await page.evaluate(id => AfterhoursGrooveLive.loadPreset(id), id)).toBe(true);

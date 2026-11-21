@@ -20,7 +20,7 @@ window.AfterhoursMPK = (() => {
     attempts = 0,
     temporary = '',
     temporaryUntil = 0;
-  let status = 'DAW-профіль вимкнено';
+  let status = 'DAW profile off';
   const enabled = () => P.store.state.midi.profile === 'mpk-mini-plus-ii' && P.store.state.midi.native;
   const report = text => {
     if (status === text) return;
@@ -63,7 +63,7 @@ window.AfterhoursMPK = (() => {
     release();
     verified = false;
     attempts = 3;
-    report('MIDI-помилка: ' + error.message + ' · натисни «Увімкнути» ще раз');
+    report('MIDI error: ' + error.message + ' · press “Enable” again');
   }
   function claim() {
     send(Q.command(0x1c, [2]));
@@ -73,7 +73,7 @@ window.AfterhoursMPK = (() => {
     send(Q.command(0x2e, [1]));
     active = true;
     cache.clear();
-    report('MPK підключено · дисплей, світло, SHIFT і крутилки готові');
+    report('MPK connected · display, lights, SHIFT and knobs ready');
     paint();
   }
   function refresh() {
@@ -87,18 +87,18 @@ window.AfterhoursMPK = (() => {
       attempts = 0;
       lastInquiry = 0;
     }
-    if (!enabled()) return report('DAW-профіль вимкнено');
-    if (!output || !inputId) return report('Очікую MPK mini Plus II · підключи USB');
+    if (!enabled()) return report('DAW profile off');
+    if (!output || !inputId) return report('Waiting for MPK mini Plus II · connect USB');
     if (!M.sysex)
       return report(
-        'Немає дозволу SysEx · дисплей і світло MPK недоступні. Дозволь SysEx для MIDI й натисни «Увімкнути» ще раз.',
+        'No SysEx permission · MPK display and lights unavailable. Allow SysEx for MIDI and press “Enable” again.',
       );
     if (!verified && attempts === 0) inquire();
   }
   function inquire() {
     attempts++;
     lastInquiry = performance.now();
-    report('Перевіряю MPK · увімкни DAW-режим на контролері');
+    report('Checking MPK · switch the controller to DAW mode');
     try {
       send(Q.inquiry);
     } catch (error) {
@@ -121,7 +121,7 @@ window.AfterhoursMPK = (() => {
         } else {
           release();
           report(
-            'MPK у режимі Plugin або User Presets. Натисни на MPK кнопку PLUGIN/DAW (без SHIFT), щоб повернути DAW — Afterhours підключиться сам.',
+            'MPK is in Plugin or User Presets mode. Press PLUGIN/DAW on the MPK (without SHIFT) to return to DAW — Afterhours reconnects by itself.',
           );
         }
       } else if (active && msg?.id === 0x19 && !msg.payload.length) {
@@ -322,7 +322,7 @@ window.AfterhoursMPK = (() => {
     }
     if (!enabled()) {
       release();
-      report('DAW-профіль вимкнено');
+      report('DAW profile off');
     } else if (['midi-profile', 'load', 'undo', 'redo'].includes(reason)) refresh();
     if (s.midi.padMode !== 'notes') {
       for (const id of notes) AfterhoursSynth.off(id);
@@ -344,7 +344,7 @@ window.AfterhoursMPK = (() => {
       if (!enabled() || document.hidden) return;
       if (!verified && output && attempts < 3 && performance.now() - lastInquiry > 2000) inquire();
       if (!verified && attempts === 3 && performance.now() - lastInquiry > 2000)
-        report('MPK не відповів · перевір DAW-режим і натисни «Увімкнути»');
+        report('MPK did not respond · check DAW mode and press “Enable”');
       if (active && performance.now() - lastOwner > 5800) {
         send(Q.command(0x1c, [2]));
         lastOwner = performance.now();

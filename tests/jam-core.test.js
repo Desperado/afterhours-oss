@@ -58,7 +58,7 @@ test('eight-note chords use separate editable lanes and styles alter backing wit
   );
   assert.deepEqual(a.project.patterns[0].tracks.slice(8), b.project.patterns[0].tracks.slice(8));
   assert.notDeepEqual(a.project.patterns[0].tracks.slice(0, 8), b.project.patterns[0].tracks.slice(0, 8));
-  assert.throws(() => J.compose([...chord, {...chord[0], note: 80}]), /8 нот/);
+  assert.throws(() => J.compose([...chord, {...chord[0], note: 80}]), /8 notes/);
 });
 test('invalid or overlong phrases are rejected before any project is produced; long gates are counted explicitly', () => {
   for (const raw of [[], [{...phrase[0], note: 127}], [{...phrase[0], velocity: NaN}], [{...phrase[0], duration: -1}]])
@@ -72,7 +72,7 @@ test('invalid or overlong phrases are rejected before any project is produced; l
         ],
         {bpm: 120},
       ),
-    /4 такти/,
+    /4 bars/,
   );
   assert.throws(() => J.compose(phrase, {bpm: NaN}));
   assert.throws(() => J.compose(phrase, {style: 'unknown'}));

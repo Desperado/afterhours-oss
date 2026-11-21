@@ -4,6 +4,9 @@
   const G = typeof module !== 'undefined' && module.exports ? require('./groove-core.js') : root.AfterhoursGroove;
   const scales = {major: [0, 2, 4, 5, 7, 9, 11], minor: [0, 2, 3, 5, 7, 8, 10]};
   const pc = n => ((n % 12) + 12) % 12;
+  // Names stored in the project are created in the current language.
+  const t = (s, ...a) =>
+    globalThis.AfterhoursI18n?.t ? globalThis.AfterhoursI18n.t(s, ...a) : s.replace(/\{(\d+)\}/g, (_, i) => a[i]);
   function tonality(notes) {
     let best = null;
     for (const [scale, intervals] of Object.entries(scales))
@@ -24,10 +27,10 @@
   function compose(raw, options = {}) {
     const bpm = Number(options.bpm ?? 100),
       style = options.style || 'groove';
-    if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240) throw new Error('Темп має бути 40–240 BPM.');
-    if (!['groove', 'gentle', 'pulse'].includes(style)) throw new Error('Вибери стиль акомпанементу.');
-    if (!Array.isArray(raw) || !raw.length) throw new Error('Спочатку зіграй кілька нот.');
-    if (raw.length > 256) throw new Error('Забагато нот. Зіграй коротшу фразу до 4 тактів.');
+    if (!Number.isFinite(bpm) || bpm < 40 || bpm > 240) throw new Error('Tempo must be 40–240 BPM.');
+    if (!['groove', 'gentle', 'pulse'].includes(style)) throw new Error('Choose an accompaniment style.');
+    if (!Array.isArray(raw) || !raw.length) throw new Error('Play a few notes first.');
+    if (raw.length > 256) throw new Error('Too many notes. Play a shorter phrase of up to 4 bars.');
     const notes = raw
       .map(n => {
         if (
@@ -43,7 +46,7 @@
           n.velocity <= 0 ||
           n.velocity > 1
         )
-          throw new Error('Для цієї версії зіграй ноти C1–C7 з коректною тривалістю.');
+          throw new Error('For this version, play notes C1–C7 with valid durations.');
         return {...n};
       })
       .sort((a, b) => a.start - b.start);
@@ -55,7 +58,7 @@
     }
     const end = Math.max(...notes.map(n => n.start + n.duration));
     if (end > 16.125 || notes.some(n => Math.round(n.start * 4) >= 64))
-      throw new Error('Фраза довша за 4 такти. Зіграй коротше або збільш темп.');
+      throw new Error('The phrase is longer than 4 bars. Play a shorter one or raise the tempo.');
     const bars = Math.max(1, Math.min(4, Math.ceil((end - 0.01) / 4))),
       length = bars * 16;
     const key = tonality(notes),
@@ -81,7 +84,7 @@
     for (const n of notes) {
       const position = Math.min(length - 1, Math.round(n.start * 4));
       const lane = lead.find(slots => !slots.has(position));
-      if (!lane) throw new Error('На одному кроці більше 8 нот. Зіграй простішу фразу.');
+      if (!lane) throw new Error('More than 8 notes on one step. Play a simpler phrase.');
       if (n.duration > 2) shortened++;
       lane.set(position, {
         on: true,
@@ -101,14 +104,14 @@
     for (let variation = 0; variation < 4; variation++) {
       const pattern = project.patterns[variation];
       pattern.length = length;
-      pattern.tracks.forEach((t, lane) => {
-        t.length = length;
-        t.steps = Array.from({length: 64}, G.step);
-        t.mute = lane >= 8 && lead[lane - 8].size === 0;
+      pattern.tracks.forEach((track, lane) => {
+        track.length = length;
+        track.steps = Array.from({length: 64}, G.step);
+        track.mute = lane >= 8 && lead[lane - 8].size === 0;
         if (lane >= 8) {
-          Object.assign(t, {
+          Object.assign(track, {
             machine: 'Tone',
-            name: 'Твоя фраза ' + (lane - 7),
+            name: t('Your phrase {0}', lane - 7),
             note: 60,
             shape: 15,
             color: 18,
@@ -118,7 +121,7 @@
             cutoff: 6500,
             volume: 58,
           });
-          for (const [position, value] of lead[lane - 8]) Object.assign(t.steps[position], value);
+          for (const [position, value] of lead[lane - 8]) Object.assign(track.steps[position], value);
         }
       });
       const tracks = pattern.tracks;
@@ -129,11 +132,11 @@
       tracks[1].name = 'Snare';
       tracks[2].name = 'Hats';
       tracks[3].name = 'Percussion';
-      Object.assign(tracks[4], {machine: 'Tone', name: 'Бас під фразу', note: 36, volume: 53, cutoff: 900});
+      Object.assign(tracks[4], {machine: 'Tone', name: t('Phrase bass'), note: 36, volume: 53, cutoff: 900});
       for (let voice = 0; voice < 3; voice++)
         Object.assign(tracks[5 + voice], {
           machine: 'Tone',
-          name: 'Гармонія ' + (voice + 1),
+          name: t('Harmony {0}', voice + 1),
           note: 60,
           shape: style === 'pulse' ? 40 : 12,
           color: 24,
@@ -162,10 +165,15 @@
       }
     }
     project.arrangement = [
-      {pattern: 0, bars, name: 'Тема', lanes: Array.from({length: 16}, (_, i) => i)},
-      {pattern: 1, bars, name: 'Рух', lanes: Array.from({length: 16}, (_, i) => i)},
-      {pattern: 2, bars, name: 'Простір', lanes: Array.from({length: 16}, (_, i) => i).filter(i => i !== 1 && i !== 3)},
-      {pattern: 3, bars, name: 'Повернення', lanes: Array.from({length: 16}, (_, i) => i)},
+      {pattern: 0, bars, name: t('Theme'), lanes: Array.from({length: 16}, (_, i) => i)},
+      {pattern: 1, bars, name: t('Motion'), lanes: Array.from({length: 16}, (_, i) => i)},
+      {
+        pattern: 2,
+        bars,
+        name: t('Breather'),
+        lanes: Array.from({length: 16}, (_, i) => i).filter(i => i !== 1 && i !== 3),
+      },
+      {pattern: 3, bars, name: t('Return'), lanes: Array.from({length: 16}, (_, i) => i)},
     ];
     return {project: G.validate(project), bars, key, shortened, count: notes.length};
   }
