@@ -5,6 +5,24 @@ test.beforeEach(async ({page}) => {
   await page.locator('#performance-toggle').click();
 });
 
+test('each mixer lane saves its own drive and exposes a MIDI learn target', async ({page}) => {
+  await page.getByText('Lane mixer + shared effects', {exact: true}).click();
+  await page.locator('#performance-mixer-lane').selectOption('7');
+  await page.getByRole('slider', {name: 'Mixer Drive', exact: true}).press('End');
+  await expect.poll(() => page.evaluate(() => AfterhoursPerformance.snapshot().mixer.lanes[7].drive)).toBe(1);
+  expect(await page.evaluate(() => AfterhoursPerformance.snapshot().mixer.lanes[6].drive)).toBe(0);
+  expect(await page.evaluate(() => AfterhoursPerformance.targets.has('mixer.7.drive'))).toBe(true);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => JSON.parse(localStorage.getItem('afterhours-fm-project-v1'))?.performance?.mixer?.lanes[7]?.drive,
+      ),
+    )
+    .toBe(1);
+  await page.reload();
+  expect(await page.evaluate(() => AfterhoursPerformance.snapshot().mixer.lanes[7].drive)).toBe(1);
+});
+
 test('saved setups, undo/redo, temporary hold and project reload preserve sounds', async ({page}) => {
   await page.evaluate(() => AfterhoursController.change({cutoff: 35, scale: 'dorian'}));
   await page.locator('#performance-setup-name').fill('Night keys');

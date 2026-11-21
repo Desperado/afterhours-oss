@@ -60,7 +60,7 @@ else {
       protocol.handle('afterhours', request => proxyRequest(request, backend));
       const ses = session.defaultSession;
       // Chromium requests midiSysex permission even for sysex:false. Grant MIDI only
-      // to our own main frame; performance-midi.js requests access without SysEx.
+      // to our own main frame; native controller feedback uses SysEx.
       const midiAllowed = (contents, permission, details) =>
         ['midi', 'midiSysex'].includes(permission) &&
         !!contents &&

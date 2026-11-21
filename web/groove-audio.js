@@ -154,13 +154,21 @@ class FMGrooveAudio {
       releases = [],
       fades = [];
     // Live keys share the sequencer voice and filter. Only the gate is held until key-up.
-    const bend = live ? ctx.createConstantSource() : null;
+    const bend = live || (!percussion && e.bend) ? ctx.createConstantSource() : null;
     const pressure = live ? ctx.createGain() : null;
-    if (live) {
+    if (bend) {
       bend.offset.value = 0;
+      if (!live) {
+        bend.offset.setValueAtTime(e.bend[0][1], time);
+        for (const [position, cents] of e.bend.slice(1))
+          bend.offset.linearRampToValueAtTime(cents, time + position * gate);
+      }
       bend.start(time);
       sources.push(bend);
-      nodes.push(bend, pressure);
+      nodes.push(bend);
+    }
+    if (live) {
+      nodes.push(pressure);
       pan.disconnect(amp);
       pan.connect(pressure).connect(amp);
       if (!percussion && s.machine !== 'Analog' && !rust) amp.gain.cancelScheduledValues(end);

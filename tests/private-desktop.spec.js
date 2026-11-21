@@ -4,6 +4,7 @@ const {createHash} = require('node:crypto');
 const path = require('node:path');
 const os = require('node:os');
 const {selection} = require('../desktop/content.cjs');
+const Groove = require('../web/groove-core.js');
 const root = path.resolve(__dirname, '..');
 
 test('private desktop preserves every project, original order, tour and required audio', async () => {
@@ -23,6 +24,47 @@ test('private desktop preserves every project, original order, tour and required
     await expect
       .poll(() => page.evaluate(() => window.AfterhoursPresets?.catalog.map(p => p.id)), {timeout: 30000})
       .toContain(expected.presets[0].id);
+    await page.locator('#performance-toggle').click();
+    await expect(page.locator('#performance-midi-native')).toBeVisible();
+    await expect(page.locator('#performance-midi-controls li')).toHaveCount(8);
+    await page.locator('#performance-midi-track-sound').click();
+    await expect(page.locator('#performance-midi-bank')).toHaveValue('track-sound');
+    const cutoff = await page.evaluate(() => {
+      const target = AfterhoursMPKControls.target('track-sound', 0);
+      const before = target.get();
+      AfterhoursMPKControls.turn(target, -1);
+      return {before, after: target.get()};
+    });
+    expect(cutoff.after).toBeLessThan(cutoff.before);
+    expect(await page.evaluate(() => typeof window.AfterhoursMPK?.reconnect)).toBe('function');
+    expect(await page.evaluate(() => typeof window.AfterhoursMPKProtocol?.text)).toBe('function');
+    expect(await page.evaluate(() => AfterhoursMPKProtocol.text(0, 'AFTERHOURS')[7])).toBe(2);
+    expect(await page.evaluate(() => AfterhoursMPKProtocol.parse(AfterhoursMPKProtocol.row(2)).payload)).toEqual([
+      2, 2, 0, 31, 63, 31, 0, 0, 0,
+    ]);
+    expect(await page.evaluate(() => AfterhoursGrooveLive.selectLane(8))).toBe(true);
+    await expect(page.locator('#perform-pad-8')).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate(() => AfterhoursGrooveLive.selectLane(0));
+    await expect(page.locator('#performance-midi-auto')).toBeVisible();
+    await expect(page.locator('#performance-midi-extra')).toBeVisible();
+    await expect(page.locator('#jam-listen')).toBeVisible();
+    expect(
+      await page.evaluate(() =>
+        AfterhoursJamCore.compose([
+          {note: 60, start: 0, duration: 0.2, velocity: 0.8},
+        ]).project.patterns[0].tracks[4].steps.some(s => s.on),
+      ),
+    ).toBe(true);
+    expect(await page.evaluate(() => typeof AfterhoursSynth.stepPreset)).toBe('function');
+    await page.getByText('USB MIDI + MIDI Learn', {exact: true}).click();
+    await page.locator('#performance-midi-profile').selectOption('mpk-mini-plus-ii');
+    await expect(page.locator('#performance-midi-mpk')).toBeVisible();
+    expect(await page.evaluate(() => typeof window.AfterhoursMIDIClock)).toBe('function');
+    expect(await page.evaluate(() => AfterhoursPerformance.snapshot().midi.profile)).toBe('mpk-mini-plus-ii');
+    await page.locator('[aria-label="MPK mini Plus II setup"]').screenshot({path: '.context/mpk-live-controls.png'});
+    await page.locator('#performance-toggle').click();
+    await expect(page.locator('#song-play')).toBeVisible();
+    await expect(page.locator('#song-instrument')).toBeVisible();
     const result = await page.evaluate(
       async ({ids, assets}) => {
         const hashes = [];
@@ -52,7 +94,26 @@ test('private desktop preserves every project, original order, tour and required
       {ids: expected.presets.map(p => p.id), assets: expected.assets},
     );
     expect(result.hashes).toEqual(
-      expected.presets.map(p => createHash('sha256').update(JSON.stringify(p.project)).digest('hex')),
+      expected.presets.map(p => {
+        const migrated = structuredClone(p.project);
+        if (migrated.performance && !migrated.performance.midi)
+          migrated.performance.midi = {profile: 'generic', knobBank: 'synth', padMode: 'drums', native: false};
+        if (migrated.performance?.midi) {
+          migrated.performance.midi.native = migrated.performance.midi.native === true;
+          migrated.performance.midi.pads ??= Array.from({length: 16}, (_, i) => i);
+        }
+        // Older mappings gain the message type, number and knob mode defaults.
+        for (const m of migrated.performance?.mappings || []) {
+          m.type ??= 'cc';
+          m.number ??= 0;
+          m.mode ??= 'absolute';
+        }
+        for (const lane of migrated.performance?.mixer?.lanes || []) if (lane.drive === undefined) lane.drive = 0;
+        const validated = Groove.validate(p.project);
+        // Legacy projects gain default device fields and neutral lane drive; musical data stays identical.
+        expect(validated).toEqual(migrated);
+        return createHash('sha256').update(JSON.stringify(validated)).digest('hex');
+      }),
     );
     expect(result.first).toEqual(expected.presets.map(p => p.id));
     expect(result.demo).toEqual(expected.demo);

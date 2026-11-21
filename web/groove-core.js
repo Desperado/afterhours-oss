@@ -22,7 +22,7 @@
   const trackCount = 16,
     kit = [...starterMachines, 'Tone', 'Saw', 'Saw', 'Tone', 'Perc', 'Metal', 'Perc', 'Tone', 'Metal', 'Saw'];
   const controls = {
-    note: ['Pitch', 24, 96, 1],
+    note: ['Pitch', 24, 108, 1],
     shape: ['Shape', 0, 100, 1],
     color: ['Color', 0, 100, 1],
     sweep: ['Sweep', 0, 100, 1],
@@ -102,6 +102,41 @@
     }
     return {length: 32, tracks};
   }
+  // One step from untrusted data: projects, imports and recorded step edits in takes.
+  function cleanStep(s) {
+    if (!s || typeof s !== 'object') return step();
+    const locks = {};
+    for (const k of lockKeys)
+      if (s.locks && Number.isFinite(s.locks[k])) locks[k] = number(s.locks[k], controls[k][1], controls[k][2], 0);
+    return {
+      on: s.on === true,
+      velocity: integer(s.velocity, 1, 127, 100),
+      chance: number(s.chance, 0, 100, 100),
+      micro: number(s.micro, -0.4, 0.4, 0),
+      repeat: integer(s.repeat, 1, 4, 1),
+      gate: number(s.gate, 0.1, 8, 0.7),
+      condition: choice(s.condition, ['always', '1:2', '2:2', 'fill', '!fill'], 'always'),
+      locks,
+      ...(Array.isArray(s.bend) &&
+      s.bend.length >= 2 &&
+      s.bend.length <= 16 &&
+      s.bend[0]?.[0] === 0 &&
+      s.bend.at(-1)?.[0] === 1 &&
+      s.bend.every(
+        (p, i) =>
+          Array.isArray(p) &&
+          p.length === 2 &&
+          Number.isFinite(p[0]) &&
+          Number.isFinite(p[1]) &&
+          p[0] >= 0 &&
+          p[0] <= 1 &&
+          Math.abs(p[1]) <= 2400 &&
+          (!i || p[0] > s.bend[i - 1][0]),
+      )
+        ? {bend: s.bend.map(p => [...p])}
+        : {}),
+    };
+  }
   function project() {
     return {
       version: 1,
@@ -133,6 +168,7 @@
     if (out.machine === 'Instrument') {
       if (!instruments.some(item => item.id === t.instrument)) throw new Error('Choose an installed instrument.');
       out.instrument = t.instrument;
+      if (Number.isFinite(t.instrumentRelease)) out.instrumentRelease = number(t.instrumentRelease, 0.005, 2, 0.2);
     }
     if (out.machine === 'Sample') {
       if (!/^[a-z0-9-]{1,64}$/.test(t.sample?.id || '')) throw new Error('Audio lane needs a local sample ID.');
@@ -151,9 +187,9 @@
       raw.version !== 1 ||
       !Array.isArray(raw.patterns) ||
       raw.patterns.length < 4 ||
-      raw.patterns.length > 32
+      raw.patterns.length > 64
     )
-      throw new Error('Choose an AFTERHOURS FM project (version 1, 4–32 patterns).');
+      throw new Error('Choose an AFTERHOURS FM project (version 1, 4–64 patterns).');
     const result = project();
     result.continuous = raw.continuous === true;
     if (
@@ -169,7 +205,7 @@
     if (raw.mix && typeof raw.mix === 'object')
       result.mix = {space: number(raw.mix.space, 0, 1, 0), pump: number(raw.mix.pump, 0, 1, 0)};
     if (Array.isArray(raw.arrangement))
-      result.arrangement = raw.arrangement.slice(0, 32).map(s => ({
+      result.arrangement = raw.arrangement.slice(0, 64).map(s => ({
         pattern: integer(s?.pattern, 0, raw.patterns.length - 1, 0),
         bars: integer(s?.bars, 1, 32, 8),
         name: typeof s?.name === 'string' ? s.name.slice(0, 30) : 'Section',
@@ -194,23 +230,7 @@
           }
           if (!t || !Array.isArray(t.steps) || t.steps.length !== 64) throw new Error('Each track needs 64 steps.');
           const out = sound(t, i);
-          out.steps = t.steps.map(s => {
-            if (!s || typeof s !== 'object') return step();
-            const locks = {};
-            for (const k of lockKeys)
-              if (s.locks && Number.isFinite(s.locks[k]))
-                locks[k] = number(s.locks[k], controls[k][1], controls[k][2], out[k]);
-            return {
-              on: s.on === true,
-              velocity: integer(s.velocity, 1, 127, 100),
-              chance: number(s.chance, 0, 100, 100),
-              micro: number(s.micro, -0.4, 0.4, 0),
-              repeat: integer(s.repeat, 1, 4, 1),
-              gate: number(s.gate, 0.1, 8, 0.7),
-              condition: choice(s.condition, ['always', '1:2', '2:2', 'fill', '!fill'], 'always'),
-              locks,
-            };
-          });
+          out.steps = t.steps.map(cleanStep);
           return out;
         }),
       };
@@ -254,6 +274,7 @@
           gate: (s.gate * duration) / s.repeat,
           velocity: s.velocity / 127,
           settings: {...t, ...s.locks},
+          ...(s.bend ? {bend: s.bend} : {}),
         }));
       }
       if (t.machine !== 'Sample' || sampleResumeTick === null) return at(position);
@@ -387,6 +408,7 @@
   }
   const api = {
     step,
+    cleanStep,
     serialize,
     trackCount,
     machines,

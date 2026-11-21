@@ -11,6 +11,7 @@
     {id: 'vsco-tuba', name: 'VSCO · tuba'},
     {id: 'vsco-trombone', name: 'VSCO · trombone'},
     {id: 'vsco-harp', name: 'VSCO · harp'},
+    {id: 'vsco-piano', name: 'VSCO · upright piano'},
     {id: 'vsco-violins', name: 'VSCO · violin section'},
     {id: 'vsco-violas', name: 'VSCO · viola section'},
     {id: 'vsco-cellos', name: 'VSCO · cello section'},

@@ -146,9 +146,16 @@ window.AfterhoursInstruments = (() => {
         const bank = banks.get(track.instrument);
         if (!bank) throw new Error(`Instrument not ready: ${track.instrument}`);
         const gate = (Math.max(0, ...track.steps.filter(s => s.on).map(s => (s.gate * 0.25) / track.rate)) * 60) / bpm;
+        const lowestBend =
+          track.instrument === 'virtuosity-drums'
+            ? 0
+            : Math.min(0, ...track.steps.flatMap(s => (s.on ? (s.bend || []).map(p => p[1]) : [])));
         for (const r of bank.regions) {
-          const natural = bank.buffers.get(r.sample).duration / 2 ** ((r.lo - r.root) / 12);
-          seconds = Math.max(seconds, r.oneShot ? natural : Math.min(natural, gate + r.release));
+          const natural = bank.buffers.get(r.sample).duration / 2 ** ((r.lo - r.root + lowestBend / 100) / 12);
+          seconds = Math.max(
+            seconds,
+            r.oneShot ? natural : Math.min(natural, gate + (track.instrumentRelease ?? r.release)),
+          );
         }
       }
     return seconds + 2; // Leave room for the mixer effects after the recording ends.
@@ -179,6 +186,12 @@ window.AfterhoursInstruments = (() => {
     filter.Q.value = 0.7;
     filter.connect(pan).connect(pressure).connect(amp).connect(renderer.mixer.channel(event.lane, drums));
     bend.offset.value = 0;
+    if (!live && !drums && event.bend) {
+      const duration = Math.max(0.003, (event.gate * 60) / renderer.bpm);
+      bend.offset.setValueAtTime(event.bend[0][1], time);
+      for (const [position, cents] of event.bend.slice(1))
+        bend.offset.linearRampToValueAtTime(cents, time + position * duration);
+    }
     bend.start(time);
     const sources = [],
       envelopes = [],
@@ -260,7 +273,7 @@ window.AfterhoursInstruments = (() => {
       bend.connect(source.detune);
       const gain = velocityGain(r, event.velocity) * 10 ** (r.volume / 20);
       const attack = Math.max(0.001, r.attack),
-        seconds = Math.max(0.01, r.release);
+        seconds = Math.max(0.005, s.instrumentRelease ?? r.release);
       envelope.gain.setValueAtTime(0, time);
       envelope.gain.linearRampToValueAtTime(gain, time + attack);
       source.connect(envelope).connect(filter);

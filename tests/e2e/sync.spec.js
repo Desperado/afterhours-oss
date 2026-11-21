@@ -125,6 +125,9 @@ for (const early of [false, true])
       expect(hit.skip).toBeCloseTo(skip, 8);
       expect(hit.gate).toBeCloseTo((early ? 1 : 4) - skip, 8);
       expect(hit.bpm).toBe(action === 'seek' ? 120 : 150);
+      await expect
+        .poll(() => page.evaluate(() => AfterhoursGrooveLive.clock().bpm))
+        .toBe(action === 'seek' ? 120 : 150);
       // Advance past the next scheduling horizon without crossing another sample trigger.
       await page.evaluate(() => {
         __sampleMedia.currentTime += 0.25;

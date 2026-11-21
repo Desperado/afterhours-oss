@@ -28,6 +28,9 @@ window.AfterhoursShell = (() => {
     engines[name] = api;
     render();
   }
+  // Other features (a performance take or replay) can keep the top Stop usable on any engine.
+  const stopHolds = [];
+  const holdStop = active => stopHolds.push(active);
   function setActive(name) {
     if (!engines[name] || active === name) return;
     active = name;
@@ -78,7 +81,8 @@ window.AfterhoursShell = (() => {
       ['transport-play', playing ? 'stop' : 'play'],
       ['transport-stop', 'stop'],
     ]) {
-      const ready = !!engine && engine.available(action);
+      const ready =
+        (!!engine && engine.available(action)) || (id === 'transport-stop' && stopHolds.some(active => active()));
       if (byId(id).disabled !== !ready) byId(id).disabled = !ready;
     }
     setAttr(byId('transport-play'), 'aria-pressed', String(playing));
@@ -316,6 +320,7 @@ window.AfterhoursShell = (() => {
     getEngine: name => engines[name],
     setActive,
     touch,
+    holdStop,
     show,
     status,
     knob,

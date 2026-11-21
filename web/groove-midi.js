@@ -137,7 +137,7 @@
       .filter(n => n.beat >= start && n.beat < start + 16)
       .map(n => ({...n, note: n.note + transpose, step: Math.min(63, Math.round((n.beat - start) * 4))}));
     if (!notes.length) throw new Error('No notes in these four bars; choose a different start bar');
-    if (notes.some(n => n.note < 24 || n.note > 96)) throw new Error('Notes outside C1–C7; adjust transpose');
+    if (notes.some(n => n.note < 24 || n.note > 108)) throw new Error('Notes outside C1–C8; adjust transpose');
     const out = G.clone(project),
       pattern = out.patterns[out.active];
     // Also preserve hidden steps beyond a short lane's loop and muted material.

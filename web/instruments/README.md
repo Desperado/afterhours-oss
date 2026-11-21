@@ -6,6 +6,12 @@ Groove** plays that lane's sound from the keyboard or MIDI input, including pitc
 and pressure. Drums use chromatic MIDI keys: kick 36, snare 38, low tom 41, closed hat
 42, open hat 46, high tom 48, crash 49. A closed hat chokes the open hat.
 
+Instrument steps support pitch-bend curves (normalized note time, cents), played independently
+for each voice. **Trig Lock → Bend start / Bend end / Bend rise** edits a ramp and hold;
+**Sound → Release** overrides the recorded release (zero restores **Recorded**).
+One-shot drums keep their natural tails. Live keys use the controller's pitch wheel.
+Pattern MIDI export omits these curves and reports that limitation; WAV keeps them.
+
 Pattern, stem and full-song WAV exports use the same instrument recordings.
 Private content packs can also supply complete sampled arrangements.
 
@@ -23,7 +29,7 @@ stereo retained, and transposes from the original root pitch. Preparation reques
 are queued; each request loads missing banks through a shared pool of up to 16
 recording jobs. Successfully decoded banks are published together and cached within
 a 1536 MiB decoded-audio budget. All selected banks together use
-about 1104 MiB. First play loads the necessary banks;
+about 1338 MiB. First play loads the necessary banks;
 subsequent notes reuse them. Reload clears the cache. Export sample rate is 48 kHz.
 
 ## Local installation and native packaging
@@ -41,7 +47,7 @@ To prepare recordings independently, extract these source distributions under
 | `karoryfer.growlybass-master/` | [Karoryfer Growlybass](https://github.com/sfzinstruments/karoryfer.growlybass), CC0; clean bass patch |
 | `guitar/EGuitarFSBS-direct SFZ+FLAC-20220911/` | [FreePats direct electric guitar](https://freepats.zenvoid.org/ElectricGuitar/clean-electric-guitar.html), CC0; bridge patch, 2022-09-11 |
 | `virtuosity_drums-master/` | [Virtuosity Drums](https://github.com/sfzinstruments/virtuosity_drums), CC0 |
-| `vsco/` | [VSCO 2 Community Edition](https://github.com/sgossner/VSCO-2-CE), CC0; selected sustain ensemble, brass, flute and harp SFZs plus their relative sample folders |
+| `vsco/` | [VSCO 2 Community Edition](https://github.com/sgossner/VSCO-2-CE), CC0; selected sustain ensemble, brass, flute, harp and upright piano SFZs plus their relative sample folders |
 
 Growlybass and Virtuosity source snapshots are pinned by the mapping hashes in the
 generated manifests. VSCO was recorded by Sam Gossner and Simon Dalzell, with sample
@@ -61,3 +67,9 @@ include the recordings named by the curated manifests. Public desktop builds inc
 [content packs](../../docs/content-packs.md). Keep source libraries available for
 rebuilding these local assets. CI can run fixture-based playback tests without the
 large banks; real-library tests run when the recordings are installed.
+
+GM toms 43, 45 and 47 transpose the nearest recorded Virtuosity tom (41 or 48), preserving its velocity layers and alternates.
+
+Growlybass notes 25–32 extend its lowest region (33–38), keeping the recorded C♯2 root (37) and transposing down for octave effects. These are derived pitches, with the original dynamics and alternate takes. The mixer’s per-lane Drive adds distortion to sampled instruments and synths; zero preserves the previous sound.
+
+VSCO upright piano adds three recorded velocity layers across 23 source pitches. Groove pitch controls extend through C8 (MIDI 108), retaining high piano notes in imported arrangements.

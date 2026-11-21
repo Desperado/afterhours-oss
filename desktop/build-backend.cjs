@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {selection} = require('./content.cjs');
 const root = path.resolve(__dirname, '..');
-const python = path.join(root, '.context/music-analysis-venv/bin/python');
+const bootstrapPython = path.join(root, '.context/music-analysis-venv/bin/python');
 const args = process.argv.slice(2);
 let selected;
 try {
@@ -18,18 +18,24 @@ const {pack, flavor} = selected;
 fs.mkdirSync(path.join(root, '.context'), {recursive: true});
 const temporary = fs.mkdtempSync(path.join(root, '.context/web-stage-'));
 const stage = path.join(temporary, 'web');
-function run(argv, options = {}) {
-  const result = spawnSync(python, argv, {cwd: root, stdio: 'inherit', ...options});
-  if (result.error) console.error('Install the Python environment and desktop/requirements-build.txt first.');
+const environment = path.join(temporary, 'venv');
+const python = path.join(environment, 'bin/python');
+function run(executable, argv, options = {}) {
+  const result = spawnSync(executable, argv, {cwd: root, stdio: 'inherit', ...options});
+  if (result.error) console.error('Run npm run setup to install the Python environment first.');
   if (result.error || result.status !== 0) throw new Error('Backend build failed');
 }
 try {
-  run(['desktop/stage_web.py', stage, ...(pack ? ['--content-pack', pack, '--instruments'] : [])]);
-  run(['desktop/licenses.py', path.join(temporary, 'licenses')]);
+  run(bootstrapPython, ['-m', 'venv', environment]);
+  run(python, ['-m', 'pip', 'install', '--disable-pip-version-check', '-r', 'desktop/requirements-build.txt']);
+  run(python, ['desktop/stage_web.py', stage, ...(pack ? ['--content-pack', pack, '--instruments'] : [])]);
+  run(python, ['desktop/licenses.py', path.join(temporary, 'licenses')]);
   run(
+    python,
     [
       '-m',
       'PyInstaller',
+      '--clean',
       '--noconfirm',
       '--distpath',
       `.context/desktop-backend/${flavor}`,

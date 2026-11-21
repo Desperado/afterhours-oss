@@ -128,6 +128,17 @@ def compile_bank(bank, source, destination):
             item["curve"] = sorted({0: 0, 127: 1, **dict(points)}.items())
         compiled.append(item)
 
+    if instrument == "growlybass":
+        # Octave effects can reach C#1. Reuse the lowest recorded region and retain
+        # its root, dynamics and alternate takes rather than substituting a synth.
+        compiled.extend({**r, "lo": 25, "hi": 32} for r in list(compiled) if r["lo"] <= 33 <= r["hi"])
+
+    if instrument == "virtuosity-drums":
+        # Fill the GM tom positions from the nearest recorded drum. Keep its
+        # root so playback transposes, with the original layers and alternates.
+        for target, recorded in [(43, 41), (45, 48), (47, 48)]:
+            compiled.extend({**r, "lo": target, "hi": target} for r in list(compiled) if r["lo"] == r["hi"] == recorded)
+
     def convert(entry):
         name, original = entry
         target = out / name
@@ -172,6 +183,7 @@ def main():
         ("tuba", "TubaSus"),
         ("trombone", "TromboneSus"),
         ("harp", "Harp"),
+        ("piano", "UprightPiano"),
         ("violins", "ViolinEnsSusVib"),
         ("violas", "ViolaEnsSusVib"),
         ("cellos", "CelloEnsSusVib"),

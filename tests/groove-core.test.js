@@ -12,6 +12,76 @@ function empty() {
   );
   return p;
 }
+test('sample release and pitch curves survive save and scheduling; malformed curves are discarded', () => {
+  const raw = G.project();
+  raw.patterns[0] = empty();
+  const t = raw.patterns[0].tracks[6];
+  Object.assign(t, {machine: 'Instrument', instrument: 'growlybass', instrumentRelease: 0.045});
+  Object.assign(t.steps[0], {
+    on: true,
+    bend: [
+      [0, 0],
+      [0.5, 200],
+      [1, 200],
+    ],
+  });
+  const saved = G.validate(JSON.parse(G.serialize(raw)));
+  assert.equal(saved.patterns[0].tracks[6].instrumentRelease, 0.045);
+  assert.deepEqual(G.events(saved.patterns[0], 0)[0].bend, t.steps[0].bend);
+  assert.notEqual(saved.patterns[0].tracks[6].steps[0].bend, t.steps[0].bend);
+  assert.equal(Object.hasOwn(G.validate(G.project()).patterns[0].tracks[6], 'instrumentRelease'), false);
+  for (const bend of [
+    [],
+    [[0, 0]],
+    [
+      [0.1, 0],
+      [1, 200],
+    ],
+    [
+      [0, 0],
+      [1, 2500],
+    ],
+    [
+      [0, 0],
+      [0.5, NaN],
+      [1, 200],
+    ],
+    [
+      [0, 0],
+      [0.5, 100],
+      [0.5, 200],
+      [1, 200],
+    ],
+    Array(17).fill([0, 0]),
+  ]) {
+    t.steps[0].bend = bend;
+    assert.equal(Object.hasOwn(G.validate(raw).patterns[0].tracks[6].steps[0], 'bend'), false);
+  }
+  t.instrumentRelease = NaN;
+  assert.equal(Object.hasOwn(G.validate(raw).patterns[0].tracks[6], 'instrumentRelease'), false);
+});
+test('Full songs retain all 64 phrases through validation and scheduling', () => {
+  const P = require('../web/groove-presets');
+  const raw = G.project();
+  raw.patterns = Array.from({length: 64}, (_, i) => {
+    const p = empty();
+    p.tracks[4].steps[0].on = true;
+    p.tracks[4].steps[0].locks.note = 24 + i;
+    return p;
+  });
+  raw.arrangement = raw.patterns.map((_, i) => ({pattern: i, bars: 1, name: `Phrase ${i}`, lanes: [4]}));
+  const saved = G.validate(JSON.parse(G.serialize(raw)));
+  assert.equal(saved.patterns.length, 64);
+  assert.equal(saved.arrangement.length, 64);
+  for (let i = 0; i < 64; i++) {
+    const events = P.songEvents(saved, i * 32);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].settings.note, 24 + i);
+  }
+  assert.deepEqual(P.songEvents(saved, 64 * 32), []);
+  raw.patterns.push(empty());
+  assert.throws(() => G.validate(raw), /4–64 patterns/);
+});
 test('Long melodic gates survive validation, scheduling and MIDI export', () => {
   const project = G.project();
   project.patterns[0] = empty();
@@ -290,4 +360,17 @@ test('Continuous Play is a validated project setting with a false default for ol
   assert.equal(G.validate(JSON.parse(G.serialize(p))).continuous, true);
   for (const value of [undefined, null, false, 'true', 1])
     assert.equal(G.validate({...p, continuous: value}).continuous, false);
+});
+
+test('upper piano notes survive validation, scheduling and MIDI export', () => {
+  const project = G.project();
+  project.patterns[0] = empty();
+  const track = project.patterns[0].tracks[6];
+  Object.assign(track, {machine: 'Instrument', instrument: 'vsco-piano', note: 98});
+  Object.assign(track.steps[0], {on: true, locks: {note: 98}});
+  const saved = G.validate(JSON.parse(G.serialize(project)));
+  const event = G.events(saved.patterns[0], 0)[0];
+  assert.equal(event.settings.note, 98);
+  const bytes = G.midi(saved.patterns[0], saved.bpm);
+  assert(bytes.some((b, i) => (b & 0xf0) === 0x90 && bytes[i + 1] === 98));
 });

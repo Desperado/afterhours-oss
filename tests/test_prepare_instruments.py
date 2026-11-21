@@ -15,6 +15,51 @@ spec.loader.exec_module(compiler)
 
 
 class InstrumentCompilerTests(unittest.TestCase):
+    def test_bass_octave_range_retains_recorded_root_and_all_takes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sf.write(root / "voice.wav", np.zeros(100), 16000)
+            (root / "bass.sfz").write_text(
+                "<group> lokey=33 hikey=38 pitch_keycenter=37 seq_length=2\n"
+                "<region> sample=voice.wav seq_position=1\n"
+                "<region> sample=voice.wav seq_position=2\n"
+            )
+            compiler.compile_bank(("growlybass", "bass.sfz", {}), root, root / "out")
+            bank = root / "out/growlybass"
+            regions = json.loads((bank / "manifest.json").read_text())["regions"]
+            self.assertEqual(regions[2:], [{**r, "lo": 25, "hi": 32} for r in regions[:2]])
+            self.assertEqual([r["root"] for r in regions[2:]], [37, 37])
+            self.assertEqual(len(list(bank.glob("*.flac"))), 1)
+
+    def test_gm_toms_reuse_nearest_recording_with_original_layers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sf.write(root / "voice.wav", np.zeros(100), 16000)
+            mappings = root / "Programs/mappings/oh"
+            mappings.mkdir(parents=True)
+            (root / "Programs/01-basic-kit.sfz").write_text("")
+            for name in [
+                "kick_snon",
+                "snare_center",
+                "hh_closed",
+                "hh_open",
+                "ltom_center",
+                "htom_center",
+                "crash_crash",
+            ]:
+                (mappings / f"{name}_map.sfz").write_text(
+                    "<region> sample=../voice.wav lovel=0 hivel=63\n<region> sample=../voice.wav lovel=64 hivel=127\n"
+                )
+            compiler.compile_bank(("virtuosity-drums", "Programs", {"oneShot": True}), root, root / "out")
+            bank = root / "out/virtuosity-drums"
+            regions = json.loads((bank / "manifest.json").read_text())["regions"]
+            for target, recorded in [(43, 41), (45, 48), (47, 48)]:
+                original = [r for r in regions if r["lo"] == r["hi"] == recorded]
+                derived = [r for r in regions if r["lo"] == r["hi"] == target]
+                self.assertEqual(derived, [{**r, "lo": target, "hi": target} for r in original])
+                self.assertEqual([r["root"] for r in derived], [recorded, recorded])
+            self.assertEqual(len(list(bank.glob("*.flac"))), 1)
+
     def test_mapping_inheritance_dynamics_alternates_and_lossless_audio(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

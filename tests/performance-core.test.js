@@ -12,8 +12,8 @@ test('project-backed performance validation bounds imports and leaves old projec
       controller: {cutoff: 999, bend: 2, root: -2},
       macros: [NaN, 2, -1],
       targets: [-1, 0, 0, 15, 16],
-      mixer: {lanes: [{level: 9, low: -99}]},
-      mappings: [{target: '__proto__'}, {target: 'macro.0', cc: 999}],
+      mixer: {lanes: [{level: 9, low: -99, drive: 9}, {drive: -2}]},
+      mappings: [{target: '__proto__'}, {target: 'macro.0', cc: 999}, {target: 'mixer.7.drive', cc: 22}],
     },
   };
   const v = G.validate(raw).performance;
@@ -23,8 +23,12 @@ test('project-backed performance validation bounds imports and leaves old projec
   assert.deepEqual(v.macros, [0, 1, 0, 0, 0, 0, 0, 0]);
   assert.equal(v.mixer.lanes[0].level, 1.5);
   assert.equal(v.mixer.lanes[0].low, -18);
-  assert.equal(v.mappings.length, 1);
+  assert.equal(v.mixer.lanes[0].drive, 1);
+  assert.equal(v.mixer.lanes[1].drive, 0);
+  assert.equal(v.mixer.lanes[2].drive, 0);
+  assert.equal(v.mappings.length, 2);
   assert.equal(v.mappings[0].cc, 127);
+  assert.equal(v.mappings[1].target, 'mixer.7.drive');
 });
 test('undo coalesces a drag, redo branches safely, and held experiments never persist', () => {
   const s = new P.Store();
@@ -146,6 +150,9 @@ test('MIDI Learn retains pulse-width and glide mappings through updates and proj
     device: 'Keys',
     channel: 0,
     cc: 20 + i,
+    type: 'cc',
+    number: 0,
+    mode: 'absolute',
     target,
   }));
   const store = new P.Store();
@@ -174,4 +181,24 @@ test('take validation preserves long-running clocks together, including fraction
     assert.equal(saved.offsetTicks + saved.songOffset, clocks.offsetTicks + clocks.songOffset);
     assert.equal(saved.offsetTicks - saved.loopOrigin, clocks.offsetTicks - clocks.loopOrigin);
   }
+});
+
+test('track automation round-trips explicit lanes and rejects unsafe paths and non-finite values', () => {
+  const event = {time: 0.2, type: 'trackControl', value: {pattern: 2, lane: 15, path: 'lfo.depth', value: 42}};
+  const raw = {
+    version: 1,
+    kind: 'afterhours-performance',
+    duration: 2,
+    initial: {groove: {project: G.project()}, synth: {id: 'forest'}},
+    events: [event],
+  };
+  assert.deepEqual(P.take(raw, G.validate).events, [event]);
+  for (const value of [
+    {...event.value, path: '__proto__.x'},
+    {...event.value, value: NaN},
+  ])
+    assert.throws(() => P.take({...raw, events: [{...event, value}]}, G.validate));
+  const state = P.validate({midi: {knobBank: 'track-motion'}, mappings: [{cc: 21, target: 'mpk.track.lfo.depth'}]});
+  assert.equal(state.midi.knobBank, 'track-motion');
+  assert.equal(state.mappings[0].target, 'mpk.track.lfo.depth');
 });

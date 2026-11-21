@@ -3127,6 +3127,101 @@ input.level-slider:focus-visible {
   }
 }
 
+.midi-setup {
+  border: 1px solid var(--ah-purple, #b79aff);
+  border-radius: 8px;
+  padding: 14px;
+  margin: 12px 0;
+}
+.midi-setup progress {
+  display: block;
+  width: 100%;
+  margin: 12px 0;
+  accent-color: var(--ah-purple, #b79aff);
+}
+.midi-setup output {
+  display: block;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.song-workflow {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--ah-line);
+  border-radius: 8px;
+}
+.song-live {
+  display: grid;
+  gap: 6px;
+}
+.song-live select {
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 180px;
+}
+#performance-midi-hardware {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+
+.mpk-controls {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+}
+.mpk-controls li {
+  border: 1px solid var(--ah-line);
+  border-radius: 8px;
+  padding: 10px;
+  min-width: 0;
+}
+.mpk-controls span,
+.mpk-controls output {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.mpk-controls output {
+  font-size: 18px;
+  margin-top: 5px;
+  font-variant-numeric: tabular-nums;
+}
+.mpk-controls .unused {
+  opacity: 0.55;
+}
+@media (max-width: 600px) {
+  .mpk-controls {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.pad-map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: 0.5rem;
+  margin-block: 0.5rem;
+}
+.pad-map-grid label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.pad-map-grid select {
+  flex: 1;
+  min-width: 0;
+}
+.song-build {
+  display: grid;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.12));
+}
+
 /* Optional Groove playalong guide. */
 .playalong {
   border: 1px solid var(--ah-line);

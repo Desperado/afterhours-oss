@@ -145,9 +145,9 @@ mod tests {
         for (half, cutoff) in [(0, 8000.0), (1, 200.0)] {
             voice.cutoff = [cutoff; BLOCK];
             for block in 0..200 {
-                for i in 0..BLOCK {
+                for (i, sample) in voice.input.iter_mut().enumerate() {
                     let n = block * BLOCK + i;
-                    voice.input[i] = if n % 48 < 24 { 0.3 } else { -0.3 };
+                    *sample = if n % 48 < 24 { 0.3 } else { -0.3 };
                 }
                 voice.process(BLOCK, BLOCK, 1, 0.0, 1.4);
                 assert!(voice.output.iter().all(|y| y.is_finite()));
@@ -168,8 +168,8 @@ mod tests {
             voice.detune = [detune; BLOCK];
             let mut energy = 0.0;
             for block in 0..100 {
-                for i in 0..BLOCK {
-                    voice.input[i] = ((block * BLOCK + i) as f32 * 0.13).sin() * 0.2;
+                for (i, sample) in voice.input.iter_mut().enumerate() {
+                    *sample = ((block * BLOCK + i) as f32 * 0.13).sin() * 0.2;
                 }
                 voice.process(BLOCK, 1, 1, 0.0, 1.4);
                 energy += voice.output.iter().map(|y| y * y).sum::<f32>();
