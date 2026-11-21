@@ -110,16 +110,14 @@
   let lastPaint = -Infinity;
   function paint(nowMs) {
     requestAnimationFrame(paint);
-    if (nowMs - lastPaint < 1000 / 30) return;
+    if (document.hidden || nowMs - lastPaint < 1000 / 30) return;
     lastPaint = nowMs;
     if (S.engine) {
       const now = S.engine.context.currentTime;
       let current = null;
       while (S.visuals.length && S.visuals[0].time <= now) current = S.visuals.shift();
-      while (S.hits.length && S.hits[0].time <= now) {
-        const h = S.hits.shift();
-        activity[h.lane] = {time: h.time, v: h.v};
-      }
+      for (const h of S.hits)
+        if (h.time <= now && h.time > activity[h.lane].time) activity[h.lane] = {time: h.time, v: h.v};
       if (current?.finished) {
         transport.stop('Song finished · tails ringing', true, 'ok', true);
         current = null;
@@ -171,13 +169,14 @@
         }
     }
     visual.paint(S.engine, S.shownFrame, S.running, performance.now() / 1000);
+    App.playalong.paint();
     window.AfterhoursDemo?.paint();
   }
 
   /* ── lifecycle and Shell engine ──────────────────────────── */
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) flushSave();
-    if (document.hidden && (S.running || S.starting)) transport.stop('Paused · tab hidden');
+    if (document.hidden) transport.schedule();
   });
   window.addEventListener('pagehide', () => {
     transport.stop();

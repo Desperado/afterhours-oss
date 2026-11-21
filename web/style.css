@@ -3126,3 +3126,62 @@ input.level-slider:focus-visible {
     min-width: 0;
   }
 }
+
+/* Optional Groove playalong guide. */
+.playalong {
+  border: 1px solid var(--ah-line);
+  border-radius: 6px;
+  padding: 16px;
+  margin: 12px 0;
+}
+.playalong-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.playalong-heading h3 {
+  margin: 0;
+}
+.playalong-parts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.playalong-part {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.playalong-part select {
+  max-width: 100%;
+}
+.playalong-note {
+  font-size: 28px;
+  line-height: 1.2;
+}
+.playalong svg {
+  width: 180px;
+  height: 190px;
+  color: var(--ah-text);
+}
+.playalong svg line {
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.5;
+}
+.playalong svg circle,
+.playalong svg text {
+  fill: currentColor;
+}
+.playalong svg text {
+  font: 13px monospace;
+}
+@media (max-width: 600px) {
+  .playalong-parts {
+    grid-template-columns: 1fr;
+  }
+}

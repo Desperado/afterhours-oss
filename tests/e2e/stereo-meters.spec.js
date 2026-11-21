@@ -6,8 +6,23 @@ test.beforeEach(async ({page}) => {
   await page.locator('#ws-groove').click();
 });
 
+async function renderedStereo(page) {
+  const start = await page.evaluate(() => {
+    // Create the lazy analyser tap before waiting for audio render quanta.
+    AfterhoursAudio.readStereo(new Float32Array(1024), new Float32Array(1024));
+    return AfterhoursAudio.context().currentTime;
+  });
+  await page.waitForFunction(start => AfterhoursAudio.context().currentTime - start >= 0.25, start, {timeout: 5000});
+  return page.evaluate(() => {
+    const left = new Float32Array(1024),
+      right = new Float32Array(1024);
+    AfterhoursAudio.readStereo(left, right);
+    return [left[512], right[512]];
+  });
+}
+
 test('all six stereo faces use independent output channels and persist the selected face', async ({page}) => {
-  const values = await page.evaluate(async () => {
+  await page.evaluate(async () => {
     const ctx = AfterhoursAudio.context();
     await ctx.resume();
     AfterhoursAudio.setVolume(1);
@@ -22,12 +37,8 @@ test('all six stereo faces use independent output channels and persist the selec
     }
     merger.connect(AfterhoursAudio.output(ctx));
     window.__meterSources = sources;
-    await new Promise(resolve => setTimeout(resolve, 150));
-    const left = new Float32Array(1024),
-      right = new Float32Array(1024);
-    AfterhoursAudio.readStereo(left, right);
-    return [left[512], right[512]];
   });
+  const values = await renderedStereo(page);
   expect(values[0]).toBeCloseTo(0.5, 4);
   expect(values[1]).toBeCloseTo(0.125, 4);
   const style = page.getByLabel('Stereo meter style');
@@ -45,15 +56,9 @@ test('all six stereo faces use independent output channels and persist the selec
     });
     expect(colors).toBeGreaterThan(8);
   }
-  const quiet = await page.evaluate(async () => {
-    AfterhoursAudio.setVolume(0.5);
-    await new Promise(resolve => setTimeout(resolve, 200));
-    const left = new Float32Array(1024),
-      right = new Float32Array(1024);
-    AfterhoursAudio.readStereo(left, right);
-    __meterSources.forEach(source => source.stop());
-    return [left[512], right[512]];
-  });
+  await page.evaluate(() => AfterhoursAudio.setVolume(0.5));
+  const quiet = await renderedStereo(page);
+  await page.evaluate(() => __meterSources.forEach(source => source.stop()));
   expect(quiet[0]).toBeCloseTo(0.25, 4);
   expect(quiet[1]).toBeCloseTo(0.0625, 4);
   await page.reload();
@@ -61,7 +66,7 @@ test('all six stereo faces use independent output channels and persist the selec
 });
 
 test('a mono output reaches both stereo channels', async ({page}) => {
-  const values = await page.evaluate(async () => {
+  await page.evaluate(async () => {
     const ctx = AfterhoursAudio.context();
     await ctx.resume();
     AfterhoursAudio.setVolume(1);
@@ -69,14 +74,10 @@ test('a mono output reaches both stereo channels', async ({page}) => {
     source.offset.value = 0.2;
     source.connect(AfterhoursAudio.output(ctx));
     source.start();
-    const left = new Float32Array(1024),
-      right = new Float32Array(1024);
-    AfterhoursAudio.readStereo(left, right);
-    await new Promise(resolve => setTimeout(resolve, 150));
-    AfterhoursAudio.readStereo(left, right);
-    source.stop();
-    return [left[512], right[512]];
+    window.__meterSources = [source];
   });
+  const values = await renderedStereo(page);
+  await page.evaluate(() => __meterSources.forEach(source => source.stop()));
   expect(values[0]).toBeCloseTo(0.2, 4);
   expect(values[1]).toBeCloseTo(0.2, 4);
 });
