@@ -235,7 +235,7 @@
       </dialog>
 
       <div class="panels" id="groove-sound-view">
-        <section class="panel" aria-labelledby="groove-macro-title"><div class="panel-head"><h3 id="groove-macro-title">Tone</h3><span class="mono dim">macros</span></div><div class="knob-row" id="groove-macros"></div><p class="hint mono">Drag ↕ · Shift fine · ↑↓ keys</p></section>
+        <section class="panel" aria-labelledby="groove-macro-title"><div class="panel-head"><h3 id="groove-macro-title" data-i18n-skip>Tone</h3><span class="mono dim">macros</span></div><div class="knob-row" id="groove-macros"></div><p class="hint mono">Drag ↕ · Shift fine · ↑↓ keys</p></section>
         <section class="panel" aria-label="Voice"><div class="panel-head"><h3>Voice</h3></div><div class="knob-row" id="groove-voice"></div></section>
         <section class="panel" aria-label="Machine"><div class="panel-head"><h3>Machine</h3></div><div class="field-grid" id="groove-machine"></div></section>
         <section class="panel" aria-label="LFO"><div class="panel-head"><h3>LFO</h3></div><div class="field-grid" id="groove-lfo"></div></section>
@@ -251,7 +251,7 @@
         <div class="perform-actions"><span class="hint">Tap select · double-tap audition · hold mute</span><button class="btn" id="perform-audition">Audition</button><button class="btn" id="perform-mute" aria-pressed="false">Mute</button></div>
         <div class="perform-pages" id="perform-pages" role="group" aria-label="Step page"></div>
         <div class="perform-steps" id="perform-steps" role="group" aria-label="Steps of the selected machine"></div>
-        <section class="panel" aria-labelledby="perform-macro-title"><div class="panel-head"><h3 id="perform-macro-title">Tone</h3><span class="mono dim">macros</span></div><div class="knob-row" id="perform-macros"></div></section>
+        <section class="panel" aria-labelledby="perform-macro-title"><div class="panel-head"><h3 id="perform-macro-title" data-i18n-skip>Tone</h3><span class="mono dim">macros</span></div><div class="knob-row" id="perform-macros"></div></section>
       </div>
     </section>
 
@@ -279,7 +279,7 @@
       <div class="ardour-grid" id="daw-session" hidden>
         <aside class="panel session-card" aria-label="Session">
           <span class="chip chip-ok" id="daw-badge"><i class="dot" data-dot="ok"></i>Connected</span>
-          <div><span class="micro-label">Session</span><strong id="daw-title" class="session-name"></strong></div>
+          <div><span class="micro-label">Session</span><strong id="daw-title" class="session-name" data-i18n-skip></strong></div>
           <div class="facts"><div><span class="micro-label">BPM</span><strong id="daw-bpm">—</strong></div><div><span class="micro-label">Routes</span><strong id="daw-routes">—</strong></div></div>
           <div class="button-row"><button class="btn btn-ok" id="daw-save">Save session</button><button class="btn" id="daw-refresh">Refresh</button></div>
           <p id="daw-status" class="ws-status" role="status"></p>
@@ -287,7 +287,7 @@
         </aside>
         <section class="panel mixer" aria-label="Mixer"><div class="panel-head"><h3>Mixer</h3><span class="mono dim">gain · dB</span><span class="spacer"></span><span class="hint" id="daw-omitted"></span></div><div id="daw-tracks" class="daw-tracks"></div></section>
         <section id="daw-bass" class="panel surge" aria-label="Surge XT sound controls" hidden>
-          <div class="panel-head"><h3>Surge XT</h3><span class="spacer"></span><label class="bass-track" hidden><span class="micro-label">Track</span><select id="bass-track"></select></label><span class="mono dim" id="bass-title">Night Bass</span><button id="bass-refresh" class="btn" aria-label="Refresh Surge XT controls">↻</button></div>
+          <div class="panel-head"><h3>Surge XT</h3><span class="spacer"></span><label class="bass-track" hidden><span class="micro-label">Track</span><select id="bass-track"></select></label><span class="mono dim" id="bass-title" data-i18n-skip>Night Bass</span><button id="bass-refresh" class="btn" aria-label="Refresh Surge XT controls">↻</button></div>
           <div id="bass-routing"></div>
           <div id="bass-controls" class="knob-row"></div>
           <p id="bass-status" class="ws-status" role="status">Reading Surge XT…</p>

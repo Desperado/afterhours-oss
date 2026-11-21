@@ -32,6 +32,18 @@ function element(tag, className, text) {
   if (text !== undefined) node.textContent = text;
   return node;
 }
+// For names and model text: content keeps its wording in every interface language.
+function content(tag, className, text) {
+  const node = element(tag, className, text);
+  node.dataset.i18nSkip = '';
+  return node;
+}
+// Dates follow the picked language. English keeps the reader's own English locale (en-GB, en-AU…)
+// and otherwise uses plain English, so a Ukrainian browser set to English shows English dates.
+function dateLocale() {
+  if (window.AfterhoursI18n?.lang === 'uk') return 'uk';
+  return /^en\b/i.test(navigator.language || '') ? undefined : 'en';
+}
 function toast(message, tone = 'ok') {
   AfterhoursShell.status(message, tone);
 }
@@ -59,7 +71,7 @@ function renderLibrary() {
       cover.setAttribute('aria-hidden', 'true');
       const label = element('span');
       label.append(
-        element('strong', '', track.title),
+        content('strong', '', track.title),
         element('small', '', `${track.format} · ${time(track.duration)}`),
       );
       item.append(cover, label);
@@ -116,8 +128,11 @@ async function loadTrack(id, keepSession = false) {
 }
 function renderTrack() {
   const track = state.track;
-  $('title').textContent = track.title;
-  $('ai-title').textContent = track.title;
+  // Recording titles are content: a recording called “Stop” keeps its name in any language.
+  for (const id of ['title', 'ai-title']) {
+    $(id).dataset.i18nSkip = '';
+    $(id).textContent = track.title;
+  }
   $('ai-duration').textContent = time(track.duration);
   $('file-meta').textContent =
     `${track.format} · ${number(track.sample_rate / 1000, 1)} kHz · ${track.channels === 2 ? 'stereo' : 'mono'}`;
@@ -293,6 +308,7 @@ function renderAI() {
   if (state.view === 'report' && state.session) renderReport();
   else $('ai-used').hidden = true;
 }
+window.addEventListener('afterhours:lang', () => renderSaved());
 function renderSaved() {
   const sessions = state.track?.sessions || [];
   $('session-count').textContent = String(sessions.length).padStart(2, '0');
@@ -306,7 +322,7 @@ function renderSaved() {
       const item = element('button', 'saved-item');
       item.type = 'button';
       item.setAttribute('aria-current', String(state.view === 'report' && state.session?.id === session.id));
-      const when = new Date(session.created).toLocaleString(window.AfterhoursI18n?.lang === 'uk' ? 'uk' : undefined, {
+      const when = new Date(session.created).toLocaleString(dateLocale(), {
         month: 'short',
         day: 'numeric',
         hour: '2-digit',
@@ -359,7 +375,7 @@ function parseNotes(text) {
   return groups;
 }
 function noteLine(line) {
-  const p = element('p'),
+  const p = content('p'),
     split = line.indexOf(':');
   if (split > 0 && split < 45)
     p.append(element('strong', '', line.slice(0, split + 1)), document.createTextNode(line.slice(split + 1)));

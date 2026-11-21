@@ -51,6 +51,28 @@ test('the language picker switches the whole interface live and remembers the ch
   expect(cyrillic).toEqual([]);
 });
 
+test('names stay as written: only interface wording is translated', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('afterhours-lang', 'uk'));
+  await page.goto('/');
+  // Machine names are identities, even where the same word is also a knob label.
+  await expect(page.locator('#groove-grid [data-lane="4"] .track-name b')).toHaveText('Tone');
+  await expect(page.locator('#groove-macro-title')).toHaveText(/^(Kick|Snare|Metal|Perc|Tone|Chord)$/);
+  const translate = text => page.evaluate(value => AfterhoursI18n.translate(value), text);
+  // Captured names are inserted unchanged, including ones that match dictionary keys.
+  expect(await translate('Track 5 · Stop · Tone')).toBe('Трек 5 · Stop · Tone');
+  expect(await translate('Your instrument · Motion')).toMatch(/· Motion$/);
+  expect(await translate('Audition · Stop')).toMatch(/· Stop$/);
+  // Captures marked {n:t} are interface wording and are translated.
+  expect(await translate('Groove engine, Stopped')).not.toMatch(/Stopped|engine/);
+  expect(await translate('WAV failed · Instrument not ready: piano')).not.toMatch(/failed|not ready/);
+  // A project title is content; the untitled fallback is interface text.
+  await page.locator('#groove-preset').selectOption({index: 0});
+  await page.locator('#groove-load-preset').click();
+  await expect(page.locator('#groove-track-title')).toHaveAttribute('data-i18n-skip', '');
+  await expect(page.locator('#groove-arrangement button').first()).toHaveAttribute('data-i18n-skip', 'text');
+  await expect(page.locator('#groove-arrangement button').first()).toHaveAttribute('title', /[\u0400-\u04FF]/);
+});
+
 test('a first visit follows the browser language', async ({browser}) => {
   const context = await browser.newContext({locale: 'uk-UA'});
   const page = await context.newPage();

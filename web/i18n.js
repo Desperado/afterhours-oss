@@ -4,12 +4,14 @@
 
    - exact:    {"English text": "translation"} matches a whole, trimmed text node or one of
                the ATTRS below.
-   - patterns: [["Loaded {0} · {1} BPM", "… {0} · {1} BPM"]] matches interpolated strings;
-               captured values are looked up in `exact` before they are inserted.
+   - patterns: [["Loaded {0} · {1} BPM", "… {0} · {1} BPM"]] matches interpolated strings.
+               A captured value is inserted unchanged, because it is usually a name; write
+               {0:t} in the source when the capture is interface wording to translate.
 
    Modules keep writing English. Strings that never reach the DOM (confirm dialogs, names
    stored in a project) go through AfterhoursI18n.t('Template {0}', value) instead.
-   Mark user content with data-i18n-skip so a recording called "Stop" stays "Stop". */
+   Names are content, not interface: mark the nodes that show a project, track, section,
+   recording or take name with data-i18n-skip so a recording called "Stop" stays "Stop". */
 window.AfterhoursI18n = (() => {
   const LANGS = {en: 'English', uk: 'Українська'};
   const ATTRS = ['aria-label', 'title', 'placeholder', 'aria-valuetext', 'alt'];
@@ -47,14 +49,17 @@ window.AfterhoursI18n = (() => {
     generic = [];
     cache.clear();
     for (const [source, target] of dictionary.patterns || []) {
-      templates.set(source, target);
-      const parts = source.split(/\{\d+\}/);
+      const slots = [...source.matchAll(/\{(\d+)(:t)?\}/g)].map(match => ({
+        slot: Number(match[1]),
+        nested: !!match[2],
+      }));
+      templates.set(source.replace(/\{(\d+):t\}/g, '{$1}'), target);
+      const parts = source.split(/\{\d+(?::t)?\}/);
       if (parts.length < 2) continue;
-      const order = [...source.matchAll(/\{(\d+)\}/g)].map(match => Number(match[1]));
       const pattern = new RegExp(
         '^' + parts.map(part => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('([\\s\\S]+?)') + '$',
       );
-      const entry = {pattern, order, target};
+      const entry = {pattern, slots, target};
       const prefix = parts[0].slice(0, 3);
       if (prefix.length < 3) generic.push(entry);
       else if (indexed.has(prefix)) indexed.get(prefix).push(entry);
@@ -62,20 +67,21 @@ window.AfterhoursI18n = (() => {
     }
   }
 
-  // Captured values are translated too: exact first, then one more level of patterns
-  // ("WAV failed · {0}" wrapping another interpolated message).
+  // A capture is inserted as it is: it is usually a name (track, song, take, machine) or a
+  // number, and names are content. Only {n:t} captures hold interface wording and are
+  // translated, one level deep ("WAV failed · {0:t}" wrapping another message).
   function lookup(text, depth = 0) {
     if (Object.prototype.hasOwnProperty.call(exact, text)) return exact[text];
     for (const list of [indexed.get(text.slice(0, 3)), generic]) {
       if (!list) continue;
-      for (const {pattern, order, target} of list) {
+      for (const {pattern, slots, target} of list) {
         const match = pattern.exec(text);
         if (!match) continue;
         const values = [];
-        order.forEach((slot, position) => {
+        slots.forEach(({slot, nested}, position) => {
           const value = match[position + 1],
             key = value.trim();
-          const inner = depth < 1 && /[A-Za-z]/.test(key) ? lookup(key, depth + 1) : null;
+          const inner = nested && depth < 1 && /[A-Za-z]/.test(key) ? lookup(key, depth + 1) : null;
           values[slot] = inner === null ? value : value.replace(key, () => inner);
         });
         return format(target, values);
@@ -110,7 +116,10 @@ window.AfterhoursI18n = (() => {
   // writes apart from the app's.
   let texts = new WeakMap(),
     attributes = new WeakMap();
+  // data-i18n-skip leaves an element and its subtree alone. data-i18n-skip="text" leaves only
+  // its text alone, so a section button keeps its name while its aria-label is translated.
   const skipped = element => !element || SKIP_TAGS.has(element.tagName) || !!element.closest('[data-i18n-skip]');
+  const skippedAttribute = element => !!element.closest('[data-i18n-skip]:not([data-i18n-skip="text"])');
 
   function applyText(node) {
     const state = texts.get(node);
@@ -126,7 +135,7 @@ window.AfterhoursI18n = (() => {
     if (value === null) return;
     const states = attributes.get(element) || {};
     if (states[name] && value === states[name].out) return;
-    if (skipped(element)) return;
+    if (skippedAttribute(element)) return;
     const out = translate(value);
     states[name] = {en: value, out};
     attributes.set(element, states);
