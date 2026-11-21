@@ -58,6 +58,11 @@
       status(e.message, 'err');
     }
   }
+  function stopLane(lane) {
+    S.engine?.stopLane(lane);
+    // Cancelled voices cannot become audible again when a lane is unmuted.
+    S.hits = S.hits.filter(h => h.lane !== lane);
+  }
   function stop(
     message = 'Groove stopped',
     pauseTrack = true,
@@ -299,6 +304,16 @@
   function schedule() {
     if (!S.running) return;
     try {
+      const now = S.engine.context.currentTime;
+      // Audio and song completion must not depend on requestAnimationFrame. Keep
+      // the latest audible frame for the UI when a hidden window returns.
+      if (S.visuals.some(v => v.finished && v.time <= now)) {
+        stop('Song finished · tails ringing', true, 'ok', true);
+        return;
+      }
+      while (S.visuals.length > 1 && S.visuals[1].time <= now) S.visuals.shift();
+      S.hits = S.hits.filter(h => h.end > now || h.time > now - 0.5);
+      window.AfterhoursDemo?.update();
       scheduleRunning();
     } catch (error) {
       stop(error.message);
@@ -336,7 +351,7 @@
         const when = S.nextTime + (e.beat - S.tick / 8) * secondsPerBeat;
         const voice = a.hit(e, when);
         window.AfterhoursDemo?.observe(voice, e, when);
-        S.hits.push({time: when, lane: e.lane, v: e.velocity, planTick: e.planTick});
+        if (voice !== null) rememberHit(e, when, secondsPerBeat);
       }
       S.visuals.push({...frame, absolute: S.tick, time: S.nextTime, secondsPerBeat});
       S.nextTime += secondsPerBeat / 8;
@@ -384,7 +399,7 @@
         if (when >= now + 0.005) {
           const voice = a.hit(e, when);
           window.AfterhoursDemo?.observe(voice, e, when);
-          S.hits.push({time: when, lane: e.lane, v: e.velocity, planTick: e.planTick});
+          if (voice !== null) rememberHit(e, when, secondsPerBeat);
         }
       }
       S.visuals.push({...frame, absolute: S.syncTick, time, secondsPerBeat});
@@ -393,10 +408,23 @@
     S.hits.sort((a, b) => a.time - b.time);
   }
 
+  function rememberHit(e, time, secondsPerBeat) {
+    S.hits.push({
+      time,
+      end: time + e.gate * secondsPerBeat,
+      lane: e.lane,
+      v: e.velocity,
+      planTick: e.planTick,
+      settings: e.settings,
+    });
+  }
+
   Object.assign(App.transport, {
+    schedule,
     audibleFrame,
     cancelPendingWrap,
     auditionLane,
+    stopLane,
     stop,
     play,
     continuePlay,

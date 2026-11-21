@@ -380,7 +380,7 @@
         solo.setAttribute('aria-pressed', String(t.solo));
         if (t.solo)
           pattern().tracks.forEach((other, j) => {
-            if (!other.solo) S.engine?.stopLane(j);
+            if (!other.solo) transport.stopLane(j);
           });
         save();
       });
@@ -454,7 +454,7 @@
   function togglePerformMute(lane) {
     const t = pattern().tracks[lane];
     t.mute = !t.mute;
-    if (t.mute) S.engine?.stopLane(lane);
+    if (t.mute) transport.stopLane(lane);
     renderPads();
     renderTrackHeads();
     save();

@@ -58,10 +58,10 @@ window.AfterhoursMPKControls = (() => {
           return;
         if (path === 'instrumentRelease' && !next) delete track.instrumentRelease;
         else write(track, path, next);
-        if (pattern === App.S.playing && path === 'mute' && next) App.S.engine?.stopLane(lane);
+        if (pattern === App.S.playing && path === 'mute' && next) App.transport.stopLane(lane);
         if (pattern === App.S.playing && path === 'solo' && next)
           App.S.data.patterns[pattern].tracks.forEach((t, i) => {
-            if (!t.solo) App.S.engine?.stopLane(i);
+            if (!t.solo) App.transport.stopLane(i);
           });
         if (!replay) P.event('trackControl', {pattern, lane, path, value});
         changed(pattern, lane, path);

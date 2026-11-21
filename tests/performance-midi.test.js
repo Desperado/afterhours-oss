@@ -373,7 +373,8 @@ test('track knobs resolve the current lane, clamp values, support fine turns and
   const {App, controls} = rig(),
     stopped = [];
   App.S.playing = 0;
-  App.S.engine = {stopLane: i => stopped.push(i)};
+  // Lanes stop through the transport, which also clears cancelled playalong guide notes.
+  App.transport = {stopLane: i => stopped.push(i)};
   const first = App.track().cutoff;
   controls.turn(controls.target('track-sound', 0), 1, true);
   assert.equal(App.track().cutoff, first + 15900 / 508);

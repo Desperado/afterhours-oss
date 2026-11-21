@@ -8,7 +8,7 @@
   $('toggle').hidden = !demo;
   if (!demo) {
     $('panel').hidden = true;
-    window.AfterhoursDemo = {events: events => events, observe() {}, paint() {}, stop() {}, active: false};
+    window.AfterhoursDemo = {events: events => events, observe() {}, update() {}, paint() {}, stop() {}, active: false};
     return;
   }
   const demoProject = AfterhoursPresets.create(demo.preset),
@@ -121,11 +121,13 @@
   $('original').addEventListener('click', () => {
     compare = !compare;
     roomKey = null;
+    update();
     paint();
   });
   $('amount').addEventListener('input', () => {
     amount = Number($('amount').value) / 100;
     roomKey = null;
+    update();
     paint();
   });
   AfterhoursPerformance.store.subscribe(() => {
@@ -170,6 +172,20 @@
   const pressed = (node, value) => {
     if (node.getAttribute('aria-pressed') !== value) node.setAttribute('aria-pressed', value);
   };
+  // Mixer changes follow the audible clock even when animation frames pause.
+  function update() {
+    if (!active()) return;
+    const state = current(AfterhoursGrooveLive.clock().beat);
+    const key = `${compare}:${state.id}:${Math.floor(state.beat / 8) % 2}:${amount}`;
+    if (key !== roomKey) {
+      const base = AfterhoursPerformance.snapshot();
+      if (!compare && state.id === 'space' && amount > 0) {
+        S.engine?.setPerformance(Core.room(base, state, amount));
+        roomApplied = true;
+      } else restoreRoom();
+      roomKey = key;
+    }
+  }
   function paint() {
     if (performance.now() < nextPaint) return;
     nextPaint = performance.now() + 100;
@@ -226,15 +242,6 @@
       disabled(c, false);
       pressed(c, String(i === state.index));
     });
-    const key = `${compare}:${state.id}:${Math.floor(state.beat / 8) % 2}:${amount}`;
-    if (key !== roomKey) {
-      const base = AfterhoursPerformance.snapshot();
-      if (!compare && state.id === 'space' && amount > 0) {
-        S.engine?.setPerformance(Core.room(base, state, amount));
-        roomApplied = true;
-      } else restoreRoom();
-      roomKey = key;
-    }
     const now = S.engine?.context.currentTime || 0;
     const ready = heard.filter(h => h.time <= now);
     if (ready.length) {
@@ -246,6 +253,7 @@
   window.AfterhoursDemo = {
     events,
     observe,
+    update,
     paint,
     stop,
     get active() {

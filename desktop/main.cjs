@@ -86,6 +86,7 @@ else {
         show: false,
         autoHideMenuBar: true,
         webPreferences: {
+          backgroundThrottling: false,
           nodeIntegration: false,
           contextIsolation: true,
           sandbox: true,
