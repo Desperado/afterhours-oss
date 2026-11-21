@@ -3,6 +3,9 @@
    Pattern order is match priority: keep specific patterns before general ones. */
 (window.AfterhoursDictionaries ||= {}).uk = {
   exact: {
+    'Colour theme': 'Колірна тема',
+    'The palette menu in the top bar changes the colours: Night, plus looks inspired by classic samplers, pad controllers and grooveboxes. The choice is remembered on this device.':
+      'Меню з палітрою у верхній панелі змінює кольори: Night, а також оформлення в дусі класичних семплерів, пед-контролерів і грувбоксів. Вибір запам’ятовується на цьому пристрої.',
     Transport: 'Транспорт',
     'AFTERHOURS home': 'AFTERHOURS — на головну',
     'Active engine': 'Активний рушій',

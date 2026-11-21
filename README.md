@@ -67,7 +67,13 @@ The rail switches between the **Groove**, **Synth**, **Ardour**, **Listen** and 
 
 The rail groups the app by job: **Create** (Groove, Synth), **Live layers** (Perform, Control), **Study** (Listen, AI) and **External** (Ardour). A live layer is not a place: it docks above whichever workspace is open, and its rail entry shows a dot while it is open. Perform is one long panel; the links under its title jump to Session, Takes, Macros, Scenes, MPK mini, Jam, USB MIDI, Mixer and Modulation. In the desktop app, **View** lists the same entries with ⌘1–⌘7.
 
-Colors have one job each, and each is paired with a symbol: magenta means sound is playing, amber (◆) marks a locked or overridden value, cyan means connected or safe, lime ($) appears only where money is spent, and violet marks the live layers. Fonts (Chakra Petch, IBM Plex Sans Condensed, JetBrains Mono, all SIL OFL) are served from `web/fonts`, so the app makes no external font requests. Cyrillic uses IBM Plex Sans Condensed and JetBrains Mono subsets; Chakra Petch has no Cyrillic, so Ukrainian headings use Plex.
+Colors have one job each, and each is paired with a symbol. In the default Night theme, magenta means sound is playing, amber (◆) marks a locked or overridden value, cyan means connected or safe, lime ($) appears only where money is spent, and violet marks the live layers. Fonts (Chakra Petch, IBM Plex Sans Condensed, JetBrains Mono, all SIL OFL) are served from `web/fonts`, so the app makes no external font requests. Cyrillic uses IBM Plex Sans Condensed and JetBrains Mono subsets; Chakra Petch has no Cyrillic, so Ukrainian headings use Plex.
+
+### Themes
+
+The palette menu in the strip (and **View → Theme** in the desktop app) changes the colours; the choice is remembered on this device. **Night** is the default. The others are looks inspired by hardware, with generic names: **Sampler 60** (warm grey case, dark rubber pads, green LCD — the only light theme), **Red Keys** (black with red actions and white pads), **Red Edition** (red case, black panels), **Clip Launch** (graphite, one clip colour per track), **Black Box** (matte black, sharp corners, yellow display digits), **Pad Grid** (glowing RGB pads per track) and **Deep Blue** (navy with sky-blue actions). No vendor artwork, logos or fonts are used.
+
+A theme is a block of the same tokens in `web/themes.css`, selected by `<html data-theme>` from `web/theme.js`, plus a few rules for pads and readouts. Each theme keeps one colour per job, but the colours differ: "playing" is magenta in Night, green in Clip Launch, orange in Red Keys and Deep Blue, yellow in Red Edition, white in Pad Grid and red in Black Box and Sampler 60. The stereo meter is drawn on a canvas with fixed colours and stays dark in every theme.
 
 ### Language
 

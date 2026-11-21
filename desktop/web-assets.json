@@ -87,6 +87,8 @@
   "synth-groove.js",
   "synth-key.js",
   "synth.js",
+  "theme.js",
+  "themes.css",
   "timbres.js",
   "voice-worklet.js",
   "voice.js",

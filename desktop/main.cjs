@@ -110,6 +110,10 @@ else {
         accelerator: 'CmdOrCtrl+' + key,
         click: inPage(`document.querySelector(${JSON.stringify(selector)})?.click()`),
       });
+      const theme = (label, id) => ({
+        label,
+        click: inPage(`window.AfterhoursTheme?.set(${JSON.stringify(id)})`),
+      });
       const language = (label, code) => ({
         label,
         click: inPage(`window.AfterhoursI18n?.setLang(${JSON.stringify(code)})`),
@@ -159,6 +163,19 @@ else {
               openWorkspace('AI', '#ws-ai', '6'),
               openWorkspace('Ardour', '#ws-ardour', '7'),
               {type: 'separator'},
+              {
+                label: 'Theme',
+                submenu: [
+                  theme('Night', 'night'),
+                  theme('Sampler 60', 'sampler'),
+                  theme('Red Keys', 'redkeys'),
+                  theme('Red Edition', 'red'),
+                  theme('Clip Launch', 'clips'),
+                  theme('Black Box', 'blackbox'),
+                  theme('Pad Grid', 'pads'),
+                  theme('Deep Blue', 'deepblue'),
+                ],
+              },
               {label: 'Language', submenu: [language('English', 'en'), language('Українська', 'uk')]},
               {type: 'separator'},
               {role: 'reload'},
