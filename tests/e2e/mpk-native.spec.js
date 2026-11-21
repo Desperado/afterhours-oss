@@ -462,6 +462,8 @@ test('Stop ends a take from MPK or the top transport, and the jam explains how t
   await expect.poll(() => page.evaluate(() => AfterhoursPerformanceStudio.recording)).toBe(false);
   expect(await page.evaluate(() => AfterhoursGrooveLive.clock().running)).toBe(false);
   await expect(page.locator('#performance-status')).toContainText('Take saved locally');
+  // The jam's warning clears once the take has ended.
+  await expect(page.locator('#jam-status')).toContainText('Ready to listen');
   await page.evaluate(() => __press(77));
   await expect.poll(() => page.evaluate(() => AfterhoursPerformanceStudio.recording)).toBe(true);
   await page.locator('#transport-stop').click();
@@ -843,4 +845,13 @@ test('without SysEx permission plain MIDI still connects and the MPK explains wh
   await expect.poll(() => page.evaluate(() => AfterhoursMPK.status)).toContain('SysEx');
   await page.evaluate(() => __send([144, 60, 100], 'keys'));
   await expect.poll(() => page.evaluate(() => AfterhoursSynth.held().length)).toBe(1);
+});
+
+test('Ukrainian status names a loaded song without guessing its grammatical gender', async ({page}) => {
+  page.on('dialog', d => d.accept());
+  await page.evaluate(() => localStorage.setItem('afterhours-lang', 'uk'));
+  await page.reload();
+  await page.locator('#performance-toggle').click();
+  await page.locator('#song-new').click();
+  await expect(page.locator('#status-text')).toContainText('Завантажено «Нова пісня»');
 });

@@ -37,7 +37,12 @@
       $('restore').disabled = true;
     }
   }
+  // Set while the status explains why the jam is blocked; cleared once that reason is gone.
+  let blocked = false;
+  const busyElsewhere = () =>
+    AfterhoursPerformanceStudio.recording || AfterhoursPerformanceStudio.replaying || App.S.exporting;
   function available() {
+    blocked = !!busyElsewhere();
     if (AfterhoursPerformanceStudio.recording)
       throw new Error('Recording in progress. Press Stop ■ (on the MPK or at the top) to save it, then try again.');
     if (AfterhoursPerformanceStudio.replaying)
@@ -281,6 +286,10 @@
   });
   App.metronome = click;
   setInterval(() => {
+    if (blocked && !busyElsewhere()) {
+      blocked = false;
+      status('Ready to listen. The previous project is saved before the accompaniment is created.');
+    }
     if (mode !== 'listening') return;
     const time = now(),
       elapsed = time - (notes[0]?.start ?? origin);
