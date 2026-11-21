@@ -82,9 +82,11 @@ else {
         minWidth: 760,
         minHeight: 600,
         title: 'AFTERHOURS',
-        backgroundColor: '#07090e',
+        backgroundColor: '#080a0f',
         show: false,
         autoHideMenuBar: true,
+        // macOS: the app's own strip is the title bar (web/style.css `.is-desktop .strip`).
+        ...(process.platform === 'darwin' ? {titleBarStyle: 'hiddenInset', trafficLightPosition: {x: 18, y: 24}} : {}),
         webPreferences: {
           backgroundThrottling: false,
           nodeIntegration: false,
@@ -100,6 +102,22 @@ else {
       });
       window.webContents.on('will-redirect', event => event.preventDefault());
       window.once('ready-to-show', () => window.show());
+      // Menu items drive the page through fixed, argument-free snippets: the renderer stays
+      // sandboxed and needs no preload bridge.
+      const inPage = code => () => window.webContents.executeJavaScript(code, true).catch(() => {});
+      const openWorkspace = (label, selector, key) => ({
+        label,
+        accelerator: 'CmdOrCtrl+' + key,
+        click: inPage(`document.querySelector(${JSON.stringify(selector)})?.click()`),
+      });
+      const theme = (label, id) => ({
+        label,
+        click: inPage(`window.AfterhoursTheme?.set(${JSON.stringify(id)})`),
+      });
+      const language = (label, code) => ({
+        label,
+        click: inPage(`window.AfterhoursI18n?.setLang(${JSON.stringify(code)})`),
+      });
       Menu.setApplicationMenu(
         Menu.buildFromTemplate([
           {
@@ -137,6 +155,29 @@ else {
           {
             label: 'View',
             submenu: [
+              openWorkspace('Groove', '#ws-groove', '1'),
+              openWorkspace('Synth', '#ws-synth', '2'),
+              openWorkspace('Perform', '#performance-toggle', '3'),
+              openWorkspace('Control', '#controller-toggle', '4'),
+              openWorkspace('Listen', '#ws-listen', '5'),
+              openWorkspace('AI', '#ws-ai', '6'),
+              openWorkspace('Ardour', '#ws-ardour', '7'),
+              {type: 'separator'},
+              {
+                label: 'Theme',
+                submenu: [
+                  theme('Night', 'night'),
+                  theme('Sampler 60', 'sampler'),
+                  theme('Red Keys', 'redkeys'),
+                  theme('Red Edition', 'red'),
+                  theme('Clip Launch', 'clips'),
+                  theme('Black Box', 'blackbox'),
+                  theme('Pad Grid', 'pads'),
+                  theme('Deep Blue', 'deepblue'),
+                ],
+              },
+              {label: 'Language', submenu: [language('English', 'en'), language('Українська', 'uk')]},
+              {type: 'separator'},
               {role: 'reload'},
               {type: 'separator'},
               {role: 'resetZoom'},

@@ -28,7 +28,7 @@
   $('native-off').addEventListener('click', () => update('native', false));
   const hardwareStatus = () => {
     $('hardware').textContent =
-      window.AfterhoursMPK.status + (P.deviceSaved ? ' · Збережено на цьому Mac' : ' · Не вдалося зберегти профіль');
+      window.AfterhoursMPK.status + (P.deviceSaved ? ' · Saved on this Mac' : ' · Could not save the profile');
   };
   window.addEventListener('afterhours:mpkstatus', hardwareStatus);
   hardwareStatus();
@@ -58,8 +58,11 @@
       value = document.createElement('output');
     li.append(label, value);
     $('controls').append(li);
-    return {li, label, value, i};
+    return {li, label, value, i, title: null, formatted: null};
   });
+  // Compare with what was written, not with the DOM: the translation layer may have replaced the text.
+  let shownContext = null,
+    shownMessage = null;
   function paintControls() {
     const bank = P.store.state.midi.knobBank,
       S = AfterhoursGrooveApp.S;
@@ -68,17 +71,18 @@
     const selected =
       bank.startsWith('track-') || (bank === 'synth' && patch.family === 'groove' && patch.lane === S.selected);
     const context = selected
-      ? `Трек ${S.selected + 1} · ${track.name} · ${track.machine}`
+      ? `Track ${S.selected + 1} · ${track.name} · ${track.machine}`
       : bank.startsWith('synth')
-        ? `Твій інструмент · ${patch.name || patch.track?.name || patch.id}`
+        ? `Your instrument · ${patch.name || patch.track?.name || patch.id}`
         : controls.banks.find(b => b[0] === bank)[1];
-    if ($('control-context').textContent !== context) $('control-context').textContent = context;
-    for (const {li, label, value, i} of knobLabels) {
+    if (shownContext !== context) $('control-context').textContent = shownContext = context;
+    for (const knob of knobLabels) {
+      const {li, label, value, i} = knob;
       const t = controls.target(bank, i),
-        title = `${i + 1} · ${t?.label || 'Недоступно для цього звуку'}`;
+        title = `${i + 1} · ${t?.label || 'Unavailable for this sound'}`;
       const formatted = t ? controls.format(t) : '—';
-      if (label.textContent !== title) label.textContent = title;
-      if (value.textContent !== formatted) value.textContent = formatted;
+      if (knob.title !== title) label.textContent = knob.title = title;
+      if (knob.formatted !== formatted) value.textContent = knob.formatted = formatted;
       li.classList.toggle('unused', !t);
     }
   }
@@ -95,7 +99,7 @@
     const label = document.createElement('label'),
       select = document.createElement('select');
     label.textContent = `${pad < 8 ? 'A' : 'B'}${(pad % 8) + 1} `;
-    select.setAttribute('aria-label', `Пед ${pad < 8 ? 'A' : 'B'}${(pad % 8) + 1} · трек`);
+    select.setAttribute('aria-label', `Pad ${pad < 8 ? 'A' : 'B'}${(pad % 8) + 1} · track`);
     select.addEventListener('change', () =>
       P.store.update(s => {
         s.midi.pads[pad] = Number(select.value);
@@ -158,20 +162,20 @@
     'action.record',
   ];
   const extraControls = {
-    'action.jam-confirm': 'центральну крутилку (натискання) · почати / підтвердити фразу',
-    'action.knob-bank-prev': 'BANK − · попередній банк крутилок',
-    'action.knob-bank': 'BANK + · наступний банк крутилок',
-    'action.undo': 'UNDO · скасувати',
+    'action.jam-confirm': 'the central encoder (push) · start / confirm phrase',
+    'action.knob-bank-prev': 'BANK − · previous knob bank',
+    'action.knob-bank': 'BANK + · next knob bank',
+    'action.undo': 'UNDO · undo',
     'action.redo': 'SHIFT + UNDO (Redo)',
-    'action.loop': 'LOOP · повторення пісні',
-    'action.panic': 'SHIFT + LOOP (Stop All) · зупинити звук',
+    'action.loop': 'LOOP · loop the song',
+    'action.panic': 'SHIFT + LOOP (Stop All) · stop all sound',
     'action.continue': 'SHIFT + Play/Stop (Continue)',
-    'action.tap': 'TAP TEMPO · темп за натисканнями',
+    'action.tap': 'TAP TEMPO · tap the tempo',
     'action.metronome': 'SHIFT + TAP TEMPO (Metronome)',
-    'action.quantize': '+ (Quantize) · вирівняти вибрану доріжку',
-    'action.keys-record': 'SHIFT + Record · запис клавіш у вибраний трек',
-    'action.song-prev': 'SHIFT + BANK − · попередня пісня',
-    'action.song-next': 'SHIFT + BANK + · наступна пісня',
+    'action.quantize': '+ (Quantize) · quantize the selected track',
+    'action.keys-record': 'SHIFT + Record · record keys into the selected track',
+    'action.song-prev': 'SHIFT + BANK − · previous song',
+    'action.song-next': 'SHIFT + BANK + · next song',
   };
   $('extra').addEventListener('click', async () => {
     userMode();
@@ -195,46 +199,46 @@
     guiding = !!target && !cancelled;
     $('skip').hidden = $('finish').hidden = !guiding;
     if (!guiding) {
-      $('instruction').textContent = cancelled ? 'Навчання зупинено' : 'Готово! Спробуй пограти';
+      $('instruction').textContent = cancelled ? 'Learning stopped' : 'Done! Try playing';
       $('explanation').textContent =
-        'Вивчені призначення збережено на цьому Mac для всіх пісень. Крутилки керують Synth, педи — доріжками Groove. Повторний запуск дозволяє перевчити їх.';
+        'Learned assignments are saved on this Mac for all songs. Knobs control Synth, pads play Groove tracks. Run it again to relearn them.';
       if (!cancelled) $('progress').value = $('progress').max;
       return;
     }
     $('progress').max = total;
     $('progress').value = index;
-    const prefix = `Крок ${index + 1} з ${total} · `;
+    const prefix = `Step ${index + 1} of ${total} · `;
     if (target === 'mpk.instrument') {
-      $('instruction').textContent = prefix + 'Поверни центральну крутилку вправо';
+      $('instruction').textContent = prefix + 'Turn the central encoder clockwise';
       $('explanation').textContent =
-        'Не натискай її — саме поверни вправо на один крок. Після навчання вправо — наступний інструмент Synth, вліво — попередній.';
+        'Don’t press it — turn it one step clockwise. After learning, clockwise selects the next Synth instrument, counter-clockwise the previous one.';
     } else if (target.startsWith('mpk.knob.')) {
-      $('instruction').textContent = prefix + `Поверни крутилку ${Number(target.split('.').at(-1)) + 1}`;
+      $('instruction').textContent = prefix + `Turn knob ${Number(target.split('.').at(-1)) + 1}`;
       $('explanation').textContent =
-        'Крути лише цю крутилку. Після призначення підказка зміниться автоматично. Рахуй крутилки зліва направо, верхній ряд, потім нижній.';
+        'Turn only this knob. The prompt moves on automatically once it is assigned. Count knobs left to right, top row first, then the bottom row.';
     } else if (target.startsWith('mpk.pad.')) {
       const pad = Number(target.split('.').at(-1));
       const bank = pad < 8 ? 'A' : 'B';
       if (pad % 8 === 0 && !confirmedBanks.has(bank)) {
         M.pause();
         waitingBank = bank;
-        $('instruction').textContent = `Спочатку увімкни банк ${bank} на MPK`;
+        $('instruction').textContent = `First select bank ${bank} on the MPK`;
         $('explanation').textContent =
-          `Натисни кнопку PAD BANK A/B на контролері, щоб засвітився індикатор ${bank}. Потім натисни «Я в банку ${bank}» нижче. Це лише перемикання банку — зараз кнопки й педи не навчаються.`;
-        $('bank-ready').textContent = `Я в банку ${bank}`;
+          `Press the PAD BANK A/B button on the controller so the ${bank} indicator lights up. Then click “I’m in bank ${bank}” below. This only switches the bank — buttons and pads are not being learned right now.`;
+        $('bank-ready').textContent = `I’m in bank ${bank}`;
         $('bank-ready').hidden = $('skip-bank').hidden = false;
         $('skip').hidden = true;
         return;
       }
-      $('instruction').textContent = prefix + `Натисни пед ${(pad % 8) + 1} · банк ${pad < 8 ? 'A' : 'B'}`;
+      $('instruction').textContent = prefix + `Press pad ${(pad % 8) + 1} · bank ${pad < 8 ? 'A' : 'B'}`;
       $('explanation').textContent =
-        `Банк ${bank} вже вибраний. Кнопку PAD BANK A/B зараз не натискай.` +
-        ' Орієнтуйся на номери педів на корпусі. Натискай по одному; клавіші зараз не чіпай. Якщо банк недоступний — пропускай ці кроки.';
+        `Bank ${bank} is already selected. Don’t press PAD BANK A/B now.` +
+        ' Follow the pad numbers on the case. Press one pad at a time; leave the keys alone for now. If the bank is unavailable, skip these steps.';
     } else {
       const names = {'action.play-stop': 'Play/Stop ▶■', 'action.record': 'Record ●', ...extraControls};
-      $('instruction').textContent = prefix + `Натисни ${names[target]}`;
+      $('instruction').textContent = prefix + `Press ${names[target]}`;
       $('explanation').textContent =
-        'Натисни відповідну кнопку на MPK. Для SHIFT-комбінації спочатку затисни SHIFT, тоді кнопку. Якщо команда недоступна або повторює звичайне натискання — пропусти цей крок; старе призначення збережеться. Навчання не запускає запис чи відтворення.';
+        'Press the matching button on the MPK. For a SHIFT combination, hold SHIFT first, then press the button. If the command is unavailable or repeats the plain press, skip this step; the old assignment is kept. Learning does not start recording or playback.';
     }
   }
   $('auto').addEventListener('click', async () => {
@@ -246,9 +250,8 @@
     $('guide').hidden = false;
     $('skip').hidden = $('finish').hidden = true;
     $('progress').value = 0;
-    $('instruction').textContent = 'Підключаю MIDI…';
-    $('explanation').textContent =
-      'MPK має бути підключений через USB. Якщо з’явиться запит доступу до MIDI — дозволь його.';
+    $('instruction').textContent = 'Connecting MIDI…';
+    $('explanation').textContent = 'The MPK must be connected over USB. If a MIDI access prompt appears, allow it.';
     try {
       await M.connect();
       if (
@@ -256,7 +259,7 @@
           d => /mpk[\s_-]*mini[\s_-]*plus[\s_-]*(ii|2)\b/i.test(d.name) && !/plugin|\bdin\b/i.test(d.name),
         )
       )
-        throw new Error('MPK mini Plus II не знайдено. Перевір USB, увімкни контролер і спробуй ще раз.');
+        throw new Error('MPK mini Plus II not found. Check USB, switch the controller on and try again.');
       M.select('*');
       $('input').value = '*';
       $('profile').value = 'mpk-mini-plus-ii';
@@ -265,7 +268,7 @@
       update('padMode', 'drums');
       M.learn(setupTargets, $('mode').value, guide);
     } catch (error) {
-      $('instruction').textContent = 'Не вдалося почати навчання';
+      $('instruction').textContent = 'Could not start learning';
       $('explanation').textContent = error.message;
     } finally {
       $('auto').disabled = false;
@@ -292,8 +295,8 @@
     const onMacros = s.midi.knobBank === 'macros';
     $('macros').setAttribute('aria-pressed', String(onMacros));
     $('macros-status').textContent = onMacros
-      ? 'Крутилки 1–8 MPK керують цими макросами.'
-      : `Зараз крутилки MPK у банку «${AfterhoursMPKControls.banks.find(b => b[0] === s.midi.knobBank)[1]}». Натисни кнопку або BANK −/+ на MPK до «Macros».`;
+      ? 'MPK knobs 1–8 control these macros.'
+      : `MPK knobs are now on the “${AfterhoursMPKControls.banks.find(b => b[0] === s.midi.knobBank)[1]}” bank. Click the button or press BANK −/+ on the MPK until “Macros”.`;
     $('pads').value = s.midi.padMode;
     $('beat').setAttribute('aria-pressed', String(s.midi.padMode === 'beat'));
     paintPadMap(s.midi.pads);
@@ -301,8 +304,8 @@
     const targets = [...setupTargets, ...Object.keys(extraControls)];
     const learned = targets.filter(t => s.mappings.some(m => m.target === t)).length;
     $('coverage').textContent = s.midi.native
-      ? 'Готовий DAW-профіль: 8 крутилок, 16 педів, центральний енкодер, транспорт, SHIFT, дисплей і світло.'
-      : `Навчено ${learned} з ${targets.length} призначень. Недоступні кнопки можна пропускати.`;
+      ? 'Ready DAW profile: 8 knobs, 16 pads, central encoder, transport, SHIFT, display and lights.'
+      : `Learned ${learned} of ${targets.length} assignments. Unavailable buttons can be skipped.`;
   };
   P.store.subscribe(paint);
   paint(P.snapshot());
@@ -345,7 +348,7 @@
       }
   });
   setInterval(() => {
-    if ($('monitor').textContent !== M.lastMessage) $('monitor').textContent = M.lastMessage;
+    if (shownMessage !== M.lastMessage) $('monitor').textContent = shownMessage = M.lastMessage;
     try {
       clock.tick(document.hidden ? {running: false} : AfterhoursGrooveLive.clock(), performance.now());
     } catch (error) {

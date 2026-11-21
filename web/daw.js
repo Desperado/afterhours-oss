@@ -299,10 +299,9 @@
     const strip = element('div', 'daw-track');
     strip.dataset.id = track.id;
     const head = element('div', 'ch-head');
-    head.append(
-      element('strong', '', track.name),
-      element('small', 'mono', track.plugins[0]?.name || track.type.replace('_', ' ')),
-    );
+    const name = element('strong', '', track.name);
+    name.dataset.i18nSkip = ''; // an Ardour track name is content
+    head.append(name, element('small', 'mono', track.plugins[0]?.name || track.type.replace('_', ' ')));
     const fader = element('div', 'fader');
     const marks = element('div', 'fader-scale mono');
     marks.setAttribute('aria-hidden', 'true');

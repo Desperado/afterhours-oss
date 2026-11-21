@@ -27,8 +27,8 @@
     $('listen').disabled = busy;
     $('confirm').disabled = busy || !['listening', 'ready', 'generated'].includes(mode);
     $('cancel').disabled = busy || mode !== 'listening';
-    $('listen').textContent = mode === 'listening' ? 'Почати фразу заново' : '1 · Слухати мою фразу';
-    $('confirm').textContent = mode === 'generated' ? 'Перебудувати акомпанемент' : '2 · Готово — додати гурт';
+    $('listen').textContent = mode === 'listening' ? 'Restart the phrase' : '1 · Listen to my phrase';
+    $('confirm').textContent = mode === 'generated' ? 'Rebuild accompaniment' : '2 · Done — add the band';
     $('listen').setAttribute('aria-pressed', String(mode === 'listening'));
     $('metronome').setAttribute('aria-pressed', String(metronome));
     try {
@@ -39,10 +39,10 @@
   }
   function available() {
     if (AfterhoursPerformanceStudio.recording)
-      throw new Error('Іде запис. Натисни Stop ■ (на MPK або вгорі), щоб зберегти його, і спробуй знову.');
+      throw new Error('Recording in progress. Press Stop ■ (on the MPK or at the top) to save it, then try again.');
     if (AfterhoursPerformanceStudio.replaying)
-      throw new Error('Іде повтор запису. Натисни Stop ■, щоб його зупинити, і спробуй знову.');
-    if (App.S.exporting) throw new Error('Іде експорт пісні. Зачекай, доки він завершиться.');
+      throw new Error('A take is replaying. Press Stop ■ to stop it, then try again.');
+    if (App.S.exporting) throw new Error('The song is exporting. Wait until it finishes.');
   }
   function closeNote(id, time = now()) {
     const note = held.get(id);
@@ -70,14 +70,14 @@
       await AfterhoursSynth.prepare();
       captureBpm = Number($('bpm').value);
       if (!Number.isFinite(captureBpm) || captureBpm < 40 || captureBpm > 240)
-        throw new Error('Темп має бути 40–240 BPM.');
+        throw new Error('Tempo must be 40–240 BPM.');
       notes = [];
       held.clear();
       origin = now();
       nextClick = origin + 0.08;
       clickBeat = 0;
       mode = 'listening';
-      status('Слухаю… Зіграй коротку фразу. Коли подобається — натисни «Готово» або центральну крутилку.');
+      status('Listening… Play a short phrase. When you like it, press “Done” or the central encoder.');
     } finally {
       busy = false;
       paint();
@@ -103,13 +103,13 @@
       if (!localStorage.getItem(backupKey)) localStorage.setItem(backupKey, JSON.stringify(before));
       applied = true;
       Live.restore({project: result.project, songMode: true, continuous: true});
-      if (!Live.flush()) throw new Error('Недостатньо місця для збереження. Проєкт повернуто; експортуй його.');
+      if (!Live.flush()) throw new Error('Not enough storage space to save. The project was restored; export it.');
       editUndo = editRedo = null;
       mode = 'generated';
       await Live.play();
       status(
-        `${result.count} нот · ${result.bars} такт(и) · ${result.project.title}. Бас, ударні й гармонія готові — редагуй їх у Groove.` +
-          (result.shortened ? ` Довгих нот скорочено до 2 долей: ${result.shortened}.` : ''),
+        `Phrase captured · ${result.count} note(s) · ${result.bars} bar(s) · ${result.project.title}. Bass, drums and harmony are ready — edit them in Groove.` +
+          (result.shortened ? ` Long notes shortened to 2 beats: ${result.shortened}.` : ''),
       );
     } catch (error) {
       if (applied) {
@@ -129,7 +129,7 @@
     mode = 'idle';
     notes = [];
     held.clear();
-    status('Фразу скасовано. Проєкт не змінено.');
+    status('Phrase cancelled. The project is unchanged.');
     paint();
   }
   function restore() {
@@ -141,20 +141,20 @@
     G.validate(snapshot.project);
     finishCapture();
     Live.restore(snapshot);
-    if (!Live.flush()) throw new Error('Проєкт повернуто в пам’ять, але не збережено. Резервну копію залишено.');
+    if (!Live.flush()) throw new Error('The project was restored in memory but not saved. The backup was kept.');
     localStorage.removeItem(backupKey);
     notes = [];
     mode = 'idle';
     editUndo = editRedo = null;
-    status('Попередній проєкт повернуто.');
+    status('Previous project restored.');
     paint();
   }
   function quantize() {
     available();
-    if (mode === 'listening' || busy) throw new Error('Спочатку заверши фразу.');
+    if (mode === 'listening' || busy) throw new Error('Finish the phrase first.');
     const track = App.track();
     if (!track.steps.some(s => s.on && s.micro !== 0)) {
-      status('На вибраній доріжці вже немає зсувів: сітка 1/16.');
+      status('The selected track has no microtiming left: 1/16 grid.');
       return;
     }
     editUndo = Live.snapshot();
@@ -164,10 +164,10 @@
     if (!Live.flush()) {
       Live.restore(editUndo);
       editUndo = null;
-      throw new Error('Квантування скасовано: немає місця для збереження.');
+      throw new Error('Quantize cancelled: no storage space to save.');
     }
     editExpected = G.serialize(Live.snapshot().project);
-    status('Зсуви нот вибраної доріжки прибрано. Undo поверне їх.');
+    status('Microtiming removed from the selected track. Undo restores it.');
   }
   function undoEdit(redo = false) {
     if (busy || mode === 'listening' || AfterhoursPerformanceStudio.recording) return false;
@@ -182,7 +182,7 @@
     if (!Live.flush()) {
       Live.restore(before);
       Live.flush();
-      status('Зміну скасовано: немає місця для збереження.');
+      status('Change cancelled: no storage space to save.');
       return true;
     }
     if (redo) {
@@ -193,7 +193,7 @@
       editUndo = null;
     }
     editExpected = G.serialize(Live.snapshot().project);
-    status(redo ? 'Квантування повторено.' : 'Квантування скасовано.');
+    status(redo ? 'Quantize redone.' : 'Quantize undone.');
     return true;
   }
   function click(tick, time) {
@@ -225,7 +225,7 @@
       nextClick = now() + 0.05;
       clickBeat = 0;
     }
-    status(metronome ? 'Метроном увімкнено: під час фрази та відтворення Groove.' : 'Метроном вимкнено.');
+    status(metronome ? 'Metronome on: during the phrase and Groove playback.' : 'Metronome off.');
     paint();
   }
   const run = fn =>
@@ -249,13 +249,13 @@
       closeNote(value.id, time);
       if (notes.length >= 256) {
         finishCapture();
-        status('Ліміт 256 нот. Підтвердь фразу або зіграй коротше.');
+        status('Limit of 256 notes. Confirm the phrase or play a shorter one.');
         return;
       }
       const note = {note: value.note, velocity: value.velocity, start: time, duration: 0.025};
       notes.push(note);
       held.set(value.id, note);
-      status(`Слухаю… ${notes.length} нот. Натисни «Готово», коли фраза сподобається.`);
+      status(`Listening… ${notes.length} note(s). Press “Done” when you like the phrase.`);
     } else if (type === 'noteOff') closeNote(value.id, time);
     else if (type === 'panic') for (const id of held.keys()) closeNote(id, time);
   });
@@ -286,7 +286,7 @@
       elapsed = time - (notes[0]?.start ?? origin);
     if (elapsed > (notes.length ? (16 * 60) / captureBpm : 30)) {
       finishCapture();
-      status('Прослуховування завершено. Підтвердь фразу або почни заново.');
+      status('Listening finished. Confirm the phrase or start again.');
       return;
     }
     if (metronome && !document.hidden && !Live.clock().running) {
@@ -300,7 +300,7 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && mode === 'listening') {
       finishCapture();
-      status('Фразу зупинено, поки вікно неактивне.');
+      status('Phrase stopped while the window is inactive.');
     }
     if (document.hidden && clickBus) clickBus.gain.value = 0;
   });

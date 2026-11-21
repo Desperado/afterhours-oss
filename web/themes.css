@@ -1,0 +1,525 @@
+/* Hardware-inspired themes. Each one is a token block plus a few rules for the parts that
+   make the reference recognisable (pads, readouts). The default "Night" theme has no block. */
+
+/* Sixteen lane colours for themes that light each track like a pad row. */
+[data-theme] .seq-row[data-lane='0'] {
+  --lane: var(--lane-1);
+}
+[data-theme] .seq-row[data-lane='1'] {
+  --lane: var(--lane-2);
+}
+[data-theme] .seq-row[data-lane='2'] {
+  --lane: var(--lane-3);
+}
+[data-theme] .seq-row[data-lane='3'] {
+  --lane: var(--lane-4);
+}
+[data-theme] .seq-row[data-lane='4'] {
+  --lane: var(--lane-5);
+}
+[data-theme] .seq-row[data-lane='5'] {
+  --lane: var(--lane-6);
+}
+[data-theme] .seq-row[data-lane='6'] {
+  --lane: var(--lane-7);
+}
+[data-theme] .seq-row[data-lane='7'] {
+  --lane: var(--lane-8);
+}
+[data-theme] .seq-row[data-lane='8'] {
+  --lane: var(--lane-1);
+}
+[data-theme] .seq-row[data-lane='9'] {
+  --lane: var(--lane-2);
+}
+[data-theme] .seq-row[data-lane='10'] {
+  --lane: var(--lane-3);
+}
+[data-theme] .seq-row[data-lane='11'] {
+  --lane: var(--lane-4);
+}
+[data-theme] .seq-row[data-lane='12'] {
+  --lane: var(--lane-5);
+}
+[data-theme] .seq-row[data-lane='13'] {
+  --lane: var(--lane-6);
+}
+[data-theme] .seq-row[data-lane='14'] {
+  --lane: var(--lane-7);
+}
+[data-theme] .seq-row[data-lane='15'] {
+  --lane: var(--lane-8);
+}
+:is([data-theme='clips'], [data-theme='pads']) .step.on:not(.playing) {
+  background: var(--lane);
+  color: #0a0a0c;
+}
+:is([data-theme='clips'], [data-theme='pads']) .seq-row .audition {
+  border-color: var(--lane);
+}
+:is([data-theme='clips'], [data-theme='pads']) .seq-row.selected .track-head {
+  box-shadow:
+    inset 3px 0 0 var(--lane),
+    inset 0 0 0 1px var(--ah-line-2);
+}
+
+/* ── Sampler 60 — Akai MPC60 / MPC3000: warm grey case, dark rubber pads, red, green LCD ── */
+[data-theme='sampler'] {
+  color-scheme: light;
+  --ah-bg: #c9c5b9;
+  --ah-bg-2: #d6d2c7;
+  --ah-surface: #e3e0d6;
+  --ah-raised: #f1efe7;
+  --ah-line: #b4ae9f;
+  --ah-line-2: #8b8576;
+  --ah-edge: rgba(0, 0, 0, 0.2);
+  --ah-grid: rgba(60, 50, 30, 0.05);
+  --ah-text: #1c1b18;
+  --ah-text-2: #45423b;
+  --ah-text-3: #5d594f;
+  --ah-ink: #f6f3ea;
+  --ah-step-on: #f6f3ea;
+  --ah-live: #d3261d;
+  --ah-live-ink: #fff5f2;
+  --ah-live-dim: #7d1c17;
+  --ah-live-glow: rgba(211, 38, 29, 0.45);
+  --ah-lock: #b86a00;
+  --ah-lock-ink: #fff7e8;
+  --ah-lock-dim: #f0dcb4;
+  --ah-ok: #1d6f57;
+  --ah-ok-dim: #cfe3d6;
+  --ah-paid: #55700a;
+  --ah-error: #a3271c;
+  --ah-error-dim: #f0cfc8;
+  --ah-focus: #2456c9;
+  --ah-layer: #5a43b5;
+  --ah-layer-dim: rgba(90, 67, 181, 0.12);
+  --ah-r: 4px;
+  --ah-r-panel: 6px;
+  --ah-shadow: 0 8px 20px rgba(60, 50, 30, 0.25);
+}
+[data-theme='sampler'] .brand {
+  text-shadow: none;
+}
+/* The LCD. */
+[data-theme='sampler'] .readout {
+  padding: 4px 10px;
+  border-radius: 3px;
+  background: #a8b78c;
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.35);
+}
+[data-theme='sampler'] .readout :is(output, .readout-input, .micro-label) {
+  color: #1f2a17;
+}
+/* Pads: dark rubber, cream when a step is on. */
+[data-theme='sampler'] .step:not(.on, .playing, .beyond) {
+  background: #55524b;
+  border-color: #3f3c36;
+  color: #d9d5c8;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.25);
+}
+[data-theme='sampler'] .step.on:not(.playing) {
+  background: #d3261d;
+  color: #fff5f2;
+  border-color: #8f1811;
+}
+[data-theme='sampler'] .step.on:not(.playing) {
+  color: #1c1b18;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.18);
+}
+[data-theme='sampler'] .step.beyond {
+  background: repeating-linear-gradient(135deg, transparent 0 6px, #cfcbc0 6px 9px);
+}
+[data-theme='sampler'] .knob-cap {
+  background: #3d3a34;
+}
+[data-theme='sampler'] .knob-ring {
+  --col: #d3261d;
+}
+
+/* ── Red Keys — Akai MPK mini / MPC One: black shell, red, white ── */
+[data-theme='redkeys'] {
+  --ah-bg: #0c0c0d;
+  --ah-bg-2: #121214;
+  --ah-surface: #18181b;
+  --ah-raised: #242428;
+  --ah-line: #2d2d32;
+  --ah-line-2: #4b4b53;
+  --ah-edge: rgba(229, 38, 31, 0.5);
+  --ah-grid: rgba(255, 255, 255, 0.025);
+  --ah-text: #f5f5f5;
+  --ah-text-2: #bcbcc2;
+  --ah-text-3: #92929a;
+  --ah-ink: #0c0c0d;
+  --ah-step-on: #ececec;
+  --ah-live: #ff8a1f;
+  --ah-live-ink: #1c0d00;
+  --ah-live-dim: #3d2108;
+  --ah-live-glow: rgba(255, 138, 31, 0.55);
+  --ah-lock: #ffd400;
+  --ah-lock-ink: #201a00;
+  --ah-lock-dim: #3a3000;
+  --ah-ok: #e5261f;
+  --ah-ok-dim: #3a0d0b;
+  --ah-paid: #c8ff3c;
+  --ah-error: #ff86a4;
+  --ah-error-dim: #3a1420;
+  --ah-focus: #8fbaff;
+  --ah-layer: #d6d6de;
+  --ah-layer-dim: rgba(214, 214, 222, 0.1);
+  --ah-r: 5px;
+  --ah-r-panel: 8px;
+}
+[data-theme='redkeys'] .brand {
+  text-shadow: 0 0 12px rgba(229, 38, 31, 0.6);
+}
+[data-theme='redkeys'] .brand span {
+  color: #e5261f;
+}
+[data-theme='redkeys'] .btn-ok {
+  color: #fff;
+}
+[data-theme='redkeys'] .step {
+  border-radius: 7px;
+}
+[data-theme='redkeys'] .step:not(.on, .playing, .beyond) {
+  background: #1f1f23;
+}
+[data-theme='redkeys'] .knob-ring {
+  --col: #e5261f;
+}
+
+/* ── Clip Launch — Akai APC / Force: graphite, a clip colour per track, green = playing ── */
+[data-theme='clips'] {
+  --ah-bg: #1b1c1e;
+  --ah-bg-2: #212325;
+  --ah-surface: #292b2e;
+  --ah-raised: #36393d;
+  --ah-line: #3d4045;
+  --ah-line-2: #5b6068;
+  --ah-edge: rgba(255, 138, 31, 0.5);
+  --ah-grid: rgba(255, 255, 255, 0.03);
+  --ah-text: #f2f3f5;
+  --ah-text-2: #c1c5cc;
+  --ah-text-3: #9aa0a9;
+  --ah-ink: #101113;
+  --ah-step-on: #d5d8dd;
+  --ah-live: #35e06a;
+  --ah-live-ink: #03200d;
+  --ah-live-dim: #0f3a1c;
+  --ah-live-glow: rgba(53, 224, 106, 0.55);
+  --ah-lock: #ffd23f;
+  --ah-lock-ink: #221a00;
+  --ah-lock-dim: #3d3208;
+  --ah-ok: #ff8a1f;
+  --ah-ok-dim: #40260a;
+  --ah-paid: #d7ff3c;
+  --ah-error: #ff6b5e;
+  --ah-error-dim: #3d1512;
+  --ah-focus: #7cc4ff;
+  --ah-layer: #45b6ff;
+  --ah-layer-dim: rgba(69, 182, 255, 0.13);
+  --ah-r: 3px;
+  --ah-r-panel: 5px;
+  --lane-1: #ff5a4d;
+  --lane-2: #ff9d2e;
+  --lane-3: #ffd23f;
+  --lane-4: #a6e22e;
+  --lane-5: #2ee6c4;
+  --lane-6: #45b6ff;
+  --lane-7: #8f7bff;
+  --lane-8: #ff6fcf;
+}
+[data-theme='clips'] .brand {
+  text-shadow: none;
+}
+[data-theme='clips'] .brand span {
+  color: #ff8a1f;
+}
+[data-theme='clips'] .step {
+  border-radius: 2px;
+}
+[data-theme='clips'] .step:not(.on, .playing, .beyond) {
+  background: #212325;
+}
+
+/* ── Black Box — Elektron Digitakt: matte black, white keys, red trigs, yellow locks ── */
+[data-theme='blackbox'] {
+  --ah-bg: #080808;
+  --ah-bg-2: #0e0e0e;
+  --ah-surface: #141414;
+  --ah-raised: #202020;
+  --ah-line: #2a2a2a;
+  --ah-line-2: #484848;
+  --ah-edge: rgba(255, 255, 255, 0.25);
+  --ah-grid: rgba(255, 255, 255, 0.02);
+  --ah-text: #f3f3f0;
+  --ah-text-2: #b8b8b3;
+  --ah-text-3: #8c8c86;
+  --ah-ink: #080808;
+  --ah-step-on: #f3f3f0;
+  --ah-live: #ff3b30;
+  --ah-live-ink: #1c0403;
+  --ah-live-dim: #3d0f0c;
+  --ah-live-glow: rgba(255, 59, 48, 0.6);
+  --ah-lock: #ffd60a;
+  --ah-lock-ink: #1f1a00;
+  --ah-lock-dim: #3a3103;
+  --ah-ok: #f3f3f0;
+  --ah-ok-dim: #2b2b2a;
+  --ah-paid: #c8ff3c;
+  --ah-error: #ff9f8a;
+  --ah-error-dim: #3a1812;
+  --ah-focus: #8ab4ff;
+  --ah-layer: #ff9500;
+  --ah-layer-dim: rgba(255, 149, 0, 0.12);
+  --ah-font-display: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --ah-r: 2px;
+  --ah-r-panel: 3px;
+}
+[data-theme='blackbox'] .brand {
+  text-shadow: none;
+  letter-spacing: 0.2em;
+}
+[data-theme='blackbox'] .brand span {
+  color: #ffd60a;
+}
+[data-theme='blackbox'] .ws-title,
+[data-theme='blackbox'] .panel-head h3 {
+  letter-spacing: 0.12em;
+  font-weight: 600;
+}
+/* The display: yellow-white on black. */
+[data-theme='blackbox'] .readout :is(output, .readout-input) {
+  color: #ffe98a;
+}
+[data-theme='blackbox'] .tplay {
+  border-radius: 2px;
+}
+[data-theme='blackbox'] .step:not(.on, .playing, .beyond) {
+  background: #1a1a1a;
+  border-color: #333;
+}
+[data-theme='blackbox'] .dot[data-dot] {
+  border-radius: 0;
+}
+
+/* ── Pad Grid — Novation Launchpad: black, glowing RGB pads ── */
+[data-theme='pads'] {
+  --ah-bg: #0b0b0f;
+  --ah-bg-2: #101016;
+  --ah-surface: #16161d;
+  --ah-raised: #22222c;
+  --ah-line: #2a2a36;
+  --ah-line-2: #474759;
+  --ah-edge: rgba(140, 107, 255, 0.5);
+  --ah-grid: rgba(160, 140, 255, 0.035);
+  --ah-text: #f2f1ff;
+  --ah-text-2: #b9b6d3;
+  --ah-text-3: #8f8cab;
+  --ah-ink: #0b0b0f;
+  --ah-step-on: #d9d6f2;
+  --ah-live: #ffffff;
+  --ah-live-ink: #0b0b0f;
+  --ah-live-dim: #34343f;
+  --ah-live-glow: rgba(255, 255, 255, 0.6);
+  --ah-lock: #ffb300;
+  --ah-lock-ink: #221600;
+  --ah-lock-dim: #3a2a05;
+  --ah-ok: #8c6bff;
+  --ah-ok-dim: #231a4d;
+  --ah-paid: #c8ff3c;
+  --ah-error: #ff7a7a;
+  --ah-error-dim: #3a1515;
+  --ah-focus: #6cc4ff;
+  --ah-layer: #ff4fa3;
+  --ah-layer-dim: rgba(255, 79, 163, 0.13);
+  --ah-r: 7px;
+  --ah-r-panel: 14px;
+  --lane-1: #ff3d6e;
+  --lane-2: #ff7a2f;
+  --lane-3: #ffd60a;
+  --lane-4: #5bff5b;
+  --lane-5: #1fe5d0;
+  --lane-6: #3d9bff;
+  --lane-7: #a56bff;
+  --lane-8: #ff5fe0;
+}
+[data-theme='pads'] .brand {
+  text-shadow: 0 0 14px rgba(140, 107, 255, 0.7);
+}
+[data-theme='pads'] .brand span {
+  color: #ff4fa3;
+}
+[data-theme='pads'] .step {
+  border-radius: 7px;
+}
+[data-theme='pads'] .step:not(.on, .playing, .beyond) {
+  background: #1c1c25;
+  border-color: #2a2a36;
+}
+[data-theme='pads'] .step.on:not(.playing) {
+  background: radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--lane) 70%, #fff), var(--lane) 70%);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--lane) 55%, transparent);
+}
+[data-theme='pads'] .btn-ok {
+  box-shadow: 0 0 16px rgba(140, 107, 255, 0.45);
+}
+
+/* ── Deep Blue — Novation Bass Station II: navy panel, sky-blue and white ── */
+[data-theme='deepblue'] {
+  --ah-bg: #08122b;
+  --ah-bg-2: #0b1836;
+  --ah-surface: #102046;
+  --ah-raised: #1a2f61;
+  --ah-line: #223a73;
+  --ah-line-2: #3f5ba0;
+  --ah-edge: rgba(77, 179, 255, 0.5);
+  --ah-grid: rgba(120, 170, 255, 0.05);
+  --ah-text: #f4f8ff;
+  --ah-text-2: #b7c8ea;
+  --ah-text-3: #8ea3cf;
+  --ah-ink: #06102a;
+  --ah-step-on: #e6eeff;
+  --ah-live: #ff6a3d;
+  --ah-live-ink: #220a02;
+  --ah-live-dim: #47200f;
+  --ah-live-glow: rgba(255, 106, 61, 0.55);
+  --ah-lock: #ffd23f;
+  --ah-lock-ink: #221a00;
+  --ah-lock-dim: #3f3410;
+  --ah-ok: #4db3ff;
+  --ah-ok-dim: #0f3566;
+  --ah-paid: #c8ff3c;
+  --ah-error: #ff9aa8;
+  --ah-error-dim: #45182a;
+  --ah-focus: #ffffff;
+  --ah-layer: #c0a2ff;
+  --ah-layer-dim: rgba(192, 162, 255, 0.14);
+  --ah-r: 5px;
+  --ah-r-panel: 9px;
+}
+[data-theme='deepblue'] .brand {
+  text-shadow: 0 0 14px rgba(77, 179, 255, 0.6);
+}
+[data-theme='deepblue'] .brand span {
+  color: #4db3ff;
+}
+[data-theme='deepblue'] .knob-cap {
+  background: #e6eeff;
+}
+[data-theme='deepblue'] .knob-cap::after {
+  background: #08122b;
+}
+[data-theme='deepblue'] .step:not(.on, .playing, .beyond) {
+  background: #0d1b3d;
+}
+
+/* ── Red Edition — Akai red special editions: bright red case, black panels, white pads ── */
+[data-theme='red'] {
+  --ah-bg: #0f0b0b;
+  --ah-bg-2: #211615;
+  --ah-surface: #171212;
+  --ah-raised: #2c2020;
+  --ah-line: #3b2a29;
+  --ah-line-2: #644846;
+  --ah-edge: rgba(255, 255, 255, 0.35);
+  --ah-grid: rgba(0, 0, 0, 0.1);
+  --ah-text: #fff6f4;
+  --ah-text-2: #e6d2ce;
+  --ah-text-3: #cbb3ae;
+  --ah-ink: #a81f16;
+  --ah-step-on: #fbf4f2;
+  --ah-live: #ffc71f;
+  --ah-live-ink: #2a1c00;
+  --ah-live-dim: #4a3608;
+  --ah-live-glow: rgba(255, 199, 31, 0.6);
+  --ah-lock: #4fd8ff;
+  --ah-lock-ink: #02222d;
+  --ah-lock-dim: #0c3a48;
+  --ah-ok: #ffffff;
+  --ah-ok-dim: #4a1512;
+  --ah-paid: #c8ff3c;
+  --ah-error: #ffd3cb;
+  --ah-error-dim: #5a1712;
+  --ah-focus: #ffe27a;
+  --ah-layer: #ffb38a;
+  --ah-layer-dim: rgba(255, 179, 138, 0.14);
+  --ah-r: 5px;
+  --ah-r-panel: 9px;
+  --ah-shadow: 0 12px 28px rgba(40, 0, 0, 0.5);
+}
+/* --ah-bg stays dark because wells (pads, inputs, meters) are painted with it; the case
+   itself is red: the workspace behind the panels, the strip, the rail and the status bar. */
+[data-theme='red'] :is(body, .workspaces) {
+  background-color: #e5493e;
+}
+[data-theme='red'] .engines {
+  background: #b3261c;
+  border-color: #b3261c;
+}
+[data-theme='red'] :is(.strip, .rail, .status-bar) {
+  background: #d8382d;
+  border-color: #b3261c;
+}
+[data-theme='red'] .brand {
+  text-shadow: none;
+}
+[data-theme='red'] .brand span {
+  color: #171212;
+}
+/* Text that sits directly on the red case rather than on a panel. */
+[data-theme='red'] .ws > .toolbar :is(.hint, .dim, .chip),
+[data-theme='red'] .song-sections button {
+  color: #fff;
+}
+[data-theme='red'] .ws > .toolbar .chip {
+  border-color: rgba(255, 255, 255, 0.6);
+}
+[data-theme='red'] .song-sections button:not(.active, .queued) {
+  border-top-color: rgba(255, 255, 255, 0.55);
+}
+[data-theme='red'] .song-overview button:not(.active, .queued) {
+  background: rgba(0, 0, 0, 0.3);
+}
+[data-theme='red'] .song-sections .active {
+  border-top-color: #171212;
+}
+[data-theme='red'] .song-overview .active {
+  background: #171212;
+}
+[data-theme='red'] .track-now {
+  border-left-color: rgba(255, 255, 255, 0.5);
+}
+[data-theme='red'] .rail button:hover {
+  background: rgba(0, 0, 0, 0.18);
+}
+[data-theme='red'] .rail button[aria-current='page'] {
+  background: #171212;
+}
+[data-theme='red'] :is(.rail-group, .strip .micro-label, .rail button, .engine-state, .local) {
+  color: #ffe1dc;
+}
+[data-theme='red'] .engines button {
+  color: #e6d2ce;
+}
+[data-theme='red'] :is(.lang-picker, .theme-picker, .help-button, .tbtn) {
+  border-color: rgba(255, 255, 255, 0.45);
+  color: #fff6f4;
+}
+[data-theme='red'] .tbtn {
+  background: #171212;
+}
+[data-theme='red'] .step:not(.on, .playing, .beyond) {
+  background: #0f0b0b;
+  border-color: #3b2a29;
+}
+[data-theme='red'] .step {
+  border-radius: 7px;
+}
+[data-theme='red'] .knob-ring {
+  --col: #ff4a3d;
+}
+[data-theme='red'] :is(.chip-paid, .btn-paid, .chip-lock) {
+  color: #171212;
+}

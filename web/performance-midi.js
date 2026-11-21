@@ -119,7 +119,7 @@ window.AfterhoursLiveMIDI = (() => {
             m.target !== target,
         )
       ) {
-        notify('Ця кнопка вже має інше призначення. Якщо SHIFT не надсилає окрему команду — пропусти цей крок.');
+        notify('This button already has another assignment. If SHIFT doesn’t send a separate message, skip this step.');
         return true;
       }
       if (eligible && !learning.seen.has(key)) {

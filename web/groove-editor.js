@@ -40,6 +40,8 @@
   /* ── song header ─────────────────────────────────────────── */
   function renderTrack() {
     const {data} = S;
+    // A project title is content; the fallback is interface text.
+    $g('track-title').toggleAttribute('data-i18n-skip', !!data.title);
     $g('track-title').textContent = data.title || 'Your session';
     $g('song').disabled = !data.arrangement?.length || S.running;
     $g('song').setAttribute('aria-pressed', String(S.songMode));
@@ -55,6 +57,7 @@
     const sections = (data.arrangement || []).map((s, index) => {
       const node = el('button', '', s.name);
       node.type = 'button';
+      node.dataset.i18nSkip = 'text';
       node.style.flexGrow = s.bars;
       node.title = `Jump to ${s.name}${S.running ? ' on the next bar' : ''}`;
       node.disabled = !!S.sync || !!S.syncRequest;
@@ -357,8 +360,10 @@
       name.type = 'button';
       name.title = t.name;
       name.setAttribute('aria-label', `Select track ${lane + 1} ${t.machine}`);
+      const machine = el('b', '', t.machine);
+      machine.dataset.i18nSkip = ''; // machine names are identities, not interface words
       name.append(
-        el('b', '', t.machine),
+        machine,
         el(
           'small',
           'mono',
@@ -480,7 +485,9 @@
         const pad = el('button', 'perform-pad');
         pad.type = 'button';
         pad.id = `perform-pad-${lane}`;
-        pad.append(el('b'), el('span', 'pad-act'), el('small', 'mono pad-len'), el('i', 'pad-meter'));
+        const machine = el('b');
+        machine.dataset.i18nSkip = '';
+        pad.append(machine, el('span', 'pad-act'), el('small', 'mono pad-len'), el('i', 'pad-meter'));
         let holdTimer = null,
           held = false,
           at = null;

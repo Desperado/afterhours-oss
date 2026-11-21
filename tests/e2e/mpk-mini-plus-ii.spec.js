@@ -160,7 +160,7 @@ test('one-button guided setup learns controls, central encoder changes instrumen
   await page.locator('#performance-midi-profile').selectOption('generic');
   await page.locator('#performance-midi-auto').click();
   const instruction = page.locator('#performance-midi-instruction');
-  await expect(instruction).toContainText('Поверни крутилку 1');
+  await expect(instruction).toContainText('Turn knob 1');
   for (const width of [390, 900]) {
     await page.setViewportSize({width, height: 1000});
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
@@ -169,37 +169,37 @@ test('one-button guided setup learns controls, central encoder changes instrumen
   await page.evaluate(() => {
     for (let i = 0; i < 8; i++) sendMIDI([0xb0, 20 + i, 64]);
   });
-  await expect(instruction).toContainText('Спочатку увімкни банк A');
+  await expect(instruction).toContainText('First select bank A');
   await page.evaluate(() => sendMIDI([0x90, 80, 127], 'daw'));
   await page.locator('#performance-midi-bank-ready').click();
-  await expect(instruction).toContainText('Натисни пед 1 · банк A');
+  await expect(instruction).toContainText('Press pad 1 · bank A');
   await page.evaluate(() => {
     for (let i = 0; i < 8; i++) sendMIDI([0x99, 36 + i, 100]);
   });
-  await expect(instruction).toContainText('Спочатку увімкни банк B');
+  await expect(instruction).toContainText('First select bank B');
   await page.evaluate(() => {
     sendMIDI([0x90, 80, 127], 'daw');
     sendMIDI([0x80, 80, 0], 'daw');
     sendMIDI([0xb0, 49, 127], 'daw');
     sendMIDI([0xc0, 12], 'daw');
   });
-  await expect(instruction).toContainText('Спочатку увімкни банк B');
+  await expect(instruction).toContainText('First select bank B');
   expect(await page.evaluate(() => AfterhoursPerformance.snapshot().mappings.some(m => m.target === 'mpk.pad.8'))).toBe(
     false,
   );
   await page.locator('.midi-setup').first().screenshot({path: '.context/mpk-bank-confirmation.png'});
   await page.locator('#performance-midi-bank-ready').click();
-  await expect(instruction).toContainText('Натисни пед 1 · банк B');
+  await expect(instruction).toContainText('Press pad 1 · bank B');
   await page.evaluate(() => {
     for (let i = 8; i < 16; i++) sendMIDI([0x99, 36 + i, 100]);
   });
-  await expect(instruction).toContainText('центральну крутилку вправо');
+  await expect(instruction).toContainText('central encoder clockwise');
   await page.evaluate(() => sendMIDI([0xb0, 16, 1], 'daw'));
   await expect(instruction).toContainText('Play');
   await page.evaluate(() => {
     for (let i = 0; i < 2; i++) sendMIDI([0x90, 110 + i, 127], 'daw');
   });
-  await expect(instruction).toContainText('Готово');
+  await expect(instruction).toContainText('Done');
   await expect(page.locator('#performance-record')).toHaveAttribute('aria-pressed', 'false');
   expect(await page.evaluate(() => AfterhoursGrooveLive.clock().running)).toBe(false);
   const original = await page.evaluate(() => AfterhoursSynth.snapshot().id);
@@ -221,19 +221,19 @@ test('one-button guided setup learns controls, central encoder changes instrumen
 test('guided setup can skip, finish early, restart and report missing hardware', async ({page}) => {
   await page.locator('#performance-midi-auto').click();
   await page.locator('#performance-midi-skip').click();
-  await expect(page.locator('#performance-midi-instruction')).toContainText('Поверни крутилку 2');
+  await expect(page.locator('#performance-midi-instruction')).toContainText('Turn knob 2');
   await page.evaluate(() => sendMIDI([0xb0, 21, 64]));
   await page.locator('#performance-midi-finish').click();
-  await expect(page.locator('#performance-midi-instruction')).toContainText('зупинено');
+  await expect(page.locator('#performance-midi-instruction')).toContainText('Learning stopped');
   expect(
     await page.evaluate(() => AfterhoursPerformance.snapshot().mappings.some(m => m.target === 'mpk.knob.1')),
   ).toBe(true);
   await page.locator('#performance-midi-auto').click();
-  await expect(page.locator('#performance-midi-instruction')).toContainText('Поверни крутилку 1');
+  await expect(page.locator('#performance-midi-instruction')).toContainText('Turn knob 1');
   await page.locator('#performance-midi-finish').click();
   await page.evaluate(() => midiAccess.inputs.clear());
   await page.locator('#performance-midi-auto').click();
-  await expect(page.locator('#performance-midi-explanation')).toContainText('не знайдено');
+  await expect(page.locator('#performance-midi-explanation')).toContainText('not found');
   await expect(page.locator('#performance-midi-auto')).toBeEnabled();
 });
 
@@ -247,13 +247,13 @@ test('bank confirmation can skip a whole bank and relearning repairs an earlier 
   });
   await page.locator('#performance-midi-learn-pads').click();
   await page.locator('#performance-midi-skip-bank').click();
-  await expect(page.locator('#performance-midi-instruction')).toContainText('Спочатку увімкни банк B');
+  await expect(page.locator('#performance-midi-instruction')).toContainText('First select bank B');
   await page.evaluate(() => sendMIDI([0x90, 80, 127], 'daw'));
   await page.locator('#performance-midi-bank-ready').click();
   await page.evaluate(() => {
     for (let i = 0; i < 8; i++) sendMIDI([0x99, 44 + i, 100]);
   });
-  await expect(page.locator('#performance-midi-instruction')).toContainText('Готово');
+  await expect(page.locator('#performance-midi-instruction')).toContainText('Done');
   const mappings = await page.evaluate(() => AfterhoursPerformance.snapshot().mappings);
   expect(mappings.find(m => m.target === 'mpk.pad.8')).toMatchObject({type: 'note', number: 44, channel: 9});
   expect(mappings.some(m => m.type === 'note' && m.number === 80)).toBe(false);
@@ -268,7 +268,7 @@ test('extended button learning protects Undo and the encoder starts a phrase the
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.locator('#performance-midi-extra').click();
-  await expect(page.locator('#performance-midi-instruction')).toContainText('центральну крутилку (натискання)');
+  await expect(page.locator('#performance-midi-instruction')).toContainText('the central encoder (push)');
   await page.evaluate(() => sendMIDI([0x90, 110, 127], 'daw'));
   await page.locator('#performance-midi-skip').click();
   await page.locator('#performance-midi-skip').click();
@@ -294,7 +294,7 @@ test('extended button learning protects Undo and the encoder starts a phrase the
     }, note);
   }
   await page.evaluate(() => sendMIDI([0x90, 110, 127], 'daw'));
-  await expect(page.locator('#jam-status')).toContainText('3 нот');
+  await expect(page.locator('#jam-status')).toContainText('3 note(s)');
   await expect.poll(() => page.evaluate(() => AfterhoursGrooveLive.clock().running)).toBe(true);
   const project = await page.evaluate(() => AfterhoursGrooveLive.snapshot().project);
   const lead = project.patterns[0].tracks.slice(8).flatMap(t => t.steps.filter(s => s.on).map(s => s.locks.note));
@@ -318,7 +318,7 @@ test('extended button learning protects Undo and the encoder starts a phrase the
   await page.locator('#performance-toggle').click();
   await expect(page.locator('#jam-restore')).toBeEnabled();
   await page.locator('#jam-restore').click();
-  await expect(page.locator('#jam-status')).toContainText('повернуто');
+  await expect(page.locator('#jam-status')).toContainText('Previous project restored');
   expect(await page.evaluate(() => AfterhoursGrooveLive.snapshot().project)).toEqual(before);
   expect(errors).toEqual([]);
 });
@@ -327,7 +327,7 @@ test('empty phrase keeps the project and quantize supports hardware Undo / Redo'
   const before = await page.evaluate(() => AfterhoursGrooveLive.snapshot().project);
   await page.locator('#jam-listen').click();
   await page.locator('#jam-confirm').click();
-  await expect(page.locator('#jam-status')).toContainText('Спочатку зіграй');
+  await expect(page.locator('#jam-status')).toContainText('Play a few notes first');
   expect(await page.evaluate(() => AfterhoursGrooveLive.snapshot().project)).toEqual(before);
   await expect(page.locator('#jam-cancel')).toBeDisabled();
   await page.evaluate(() => {
@@ -364,7 +364,7 @@ test('failed backup cannot replace the project and regeneration retains the firs
   expect(await page.evaluate(() => AfterhoursGrooveLive.clock().running)).toBe(false);
   await page.evaluate(() => (Storage.prototype.setItem = originalSetItem));
   await page.locator('#jam-confirm').click();
-  await expect(page.locator('#jam-status')).toContainText('1 нот');
+  await expect(page.locator('#jam-status')).toContainText('1 note(s)');
   const backup = await page.evaluate(() => localStorage.getItem('afterhours-jam-backup-v1'));
   await page.locator('#jam-style').selectOption('pulse');
   await page.locator('#jam-confirm').click();
@@ -396,7 +396,7 @@ test('quantize Undo rolls back a failed save and ignores stale history after oth
     }
   });
   expect(result.micro).toBe(0);
-  expect(result.status).toContain('немає місця');
+  expect(result.status).toContain('no storage space');
   expect(await page.evaluate(() => AfterhoursJam.undoEdit())).toBe(true);
   expect(await page.evaluate(() => AfterhoursGrooveApp.track().steps[0].micro)).toBe(0.3);
   await page.locator('#jam-quantize').click();
