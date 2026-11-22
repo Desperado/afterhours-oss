@@ -839,6 +839,11 @@
   }
   // Stop pressed while a take is still starting waits for it, then finishes it, instead of being lost.
   let startingTake = null;
+  let songSwitch = null;
+  const cancelSongSwitch = () => {
+    songSwitch = null;
+  };
+  window.addEventListener('afterhours:groovestop', cancelSongSwitch);
   function startRecording() {
     startingTake ||= beginRecording().finally(() => {
       startingTake = null;
@@ -906,14 +911,21 @@
   $('stop').addEventListener(
     'click',
     attempt(async () => {
+      cancelSongSwitch();
       await stopTake();
       $('player').pause();
     }),
   );
   // The main transport Stop must end a take too; the take controls live in a collapsed panel.
   // Keep it enabled for an active take or replay even when the selected engine cannot stop.
-  S.holdStop(() => !!recording || replaying || !!startingTake);
-  document.getElementById('transport-stop').addEventListener('click', attempt(stopTake));
+  S.holdStop(() => !!recording || replaying || !!startingTake || !!songSwitch);
+  document.getElementById('transport-stop').addEventListener(
+    'click',
+    attempt(async () => {
+      cancelSongSwitch();
+      await stopTake();
+    }),
+  );
   window.addEventListener('afterhours:recordlimit', () => finishRecording().catch(e => message(e.message, true)));
   const takeFilename = () =>
     (take?.name || 'afterhours-performance')
@@ -1386,9 +1398,11 @@
           break;
         }
         case 'action.continue':
+          cancelSongSwitch();
           await AfterhoursGrooveLive.continue();
           break;
         case 'action.play':
+          cancelSongSwitch();
           if (!grooveActive()) {
             AfterhoursSongWorkflow.loadPending();
             await AfterhoursGrooveLive.play();
@@ -1398,17 +1412,28 @@
           AfterhoursGrooveLive.stop();
           await stopTake();
           break;
-        case 'action.play-stop':
+        case 'action.play-stop': {
           // Stop also ends a take, as in a DAW; otherwise recording would continue silently.
           // A song chosen with SHIFT + BANK while playing replaces the current one at once.
+          if (songSwitch) {
+            cancelSongSwitch();
+            break;
+          }
           if (grooveActive()) {
             AfterhoursGrooveLive.stop();
-            await stopTake();
-            if (!AfterhoursSongWorkflow.pending) break;
+            const transition = AfterhoursSongWorkflow.pending ? {} : null;
+            songSwitch = transition;
+            try {
+              await stopTake();
+              if (!transition || songSwitch !== transition || !AfterhoursSongWorkflow.pending) break;
+            } finally {
+              if (songSwitch === transition) cancelSongSwitch();
+            }
           }
           AfterhoursSongWorkflow.loadPending();
           await AfterhoursGrooveLive.play();
           break;
+        }
         case 'action.rewind':
           S.getEngine('groove').start();
           break;

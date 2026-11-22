@@ -239,25 +239,28 @@ window.AfterhoursLiveMIDI = (() => {
     for (const map of [bends, pressures])
       for (const key of map.keys()) if (!device || key.startsWith(`midi:${device}:`)) map.delete(key);
   }
-  function receive(input, bytes) {
+  function receive(input, bytes, emulated = !!emulatorAccess) {
     if (window.AfterhoursPerformanceStudio?.replaying) return;
-    if (selected !== '*' && input.id !== selected) return;
-    const mpk = emulatorAccess || state.midi.profile === 'mpk-mini-plus-ii';
+    const transportOnly = !!emulatorAccess && !emulated;
+    const selection = transportOnly ? '*' : selected;
+    if (selection !== '*' && input.id !== selection) return;
+    const mpk = emulated || state.midi.profile === 'mpk-mini-plus-ii';
     const name = deviceName(input);
     if (
       mpk &&
-      selected === '*' &&
+      selection === '*' &&
       (!/mpk[\s_-]*mini[\s_-]*plus[\s_-]*(ii|2)\b/i.test(name) || /plugin|\bdin\b/i.test(name))
     )
       return;
     if (bytes[0] === 0xf0) {
-      window.AfterhoursMPK?.sysex(input, bytes);
+      window.AfterhoursMPK?.sysex(input, bytes, emulated);
       return;
     }
     const msg = Core.midi(bytes);
     if (!msg) return;
     lastMessage = `${name} · ch ${msg.channel + 1} · ${msg.type} ${msg.cc ?? msg.note ?? msg.number ?? ''} ${msg.value ?? msg.velocity ?? ''}`;
-    if (!learning && window.AfterhoursMPK?.route(input, msg)) return;
+    if ((transportOnly || !learning) && window.AfterhoursMPK?.route(input, msg, emulated)) return;
+    if (transportOnly) return;
     if (!(msg.type === 'cc' && [64, 120, 121, 123].includes(msg.cc)) && route(input, msg)) return;
     if (emulatorAccess && msg.type === 'cc' && msg.channel === 0 && msg.cc === 1) {
       const motion = P.targets.get('synth.motion');
@@ -352,10 +355,15 @@ window.AfterhoursLiveMIDI = (() => {
   }
   function refresh() {
     const inputs = [...(access?.inputs.values() || [])];
+    const emulated = !!emulatorAccess;
     for (const input of inputs) {
-      input.onmidimessage = e => receive(input, e.data);
+      input.onmidimessage = e => receive(input, e.data, emulated);
       if (input.state !== 'connected') releaseDevice(input.id);
     }
+    // The widget owns note input, but the verified USB DAW port can still stop the song.
+    if (emulated && physicalAccess)
+      for (const input of physicalAccess.inputs.values())
+        if (AfterhoursMPKProtocol.daw(input)) input.onmidimessage = e => receive(input, e.data, false);
     const connected = new Set(inputs.filter(i => i.state === 'connected').map(i => i.id));
     for (const v of [...voices.values()]) if (!connected.has(v.device)) releaseDevice(v.device);
     if (selected !== '*' && !connected.has(selected)) selected = '*';
@@ -380,7 +388,6 @@ window.AfterhoursLiveMIDI = (() => {
     useAccess(next || physicalAccess);
   }
   async function connect() {
-    if (emulatorAccess) return;
     if (!navigator.requestMIDIAccess) throw new Error('USB MIDI needs the desktop app or a browser with Web MIDI.');
     // SysEx is only needed for the MPK's display and lights; without that permission, plain MIDI still works.
     let next, sysex;
@@ -391,7 +398,10 @@ window.AfterhoursLiveMIDI = (() => {
       next = await navigator.requestMIDIAccess();
       sysex = false;
     }
-    if (physicalAccess && physicalAccess !== next) physicalAccess.onstatechange = null;
+    if (physicalAccess && physicalAccess !== next) {
+      physicalAccess.onstatechange = null;
+      for (const input of physicalAccess.inputs.values()) input.onmidimessage = null;
+    }
     physicalAccess = next;
     physicalSysex = sysex;
     physicalAccess.onstatechange = refresh;
@@ -415,9 +425,11 @@ window.AfterhoursLiveMIDI = (() => {
   window.addEventListener('afterhours:midilearn', e => {
     learn([e.detail]);
   });
-  window.addEventListener('blur', () => releaseDevice());
+  window.addEventListener('blur', () => {
+    if (!emulatorAccess) releaseDevice();
+  });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) releaseDevice();
+    if (document.hidden && !emulatorAccess) releaseDevice();
   });
   return {
     connect,
@@ -428,6 +440,16 @@ window.AfterhoursLiveMIDI = (() => {
     get sysex() {
       return !!emulatorAccess || physicalSysex;
     },
+    mpkPorts(emulated) {
+      const midi = emulated ? emulatorAccess : physicalAccess;
+      const daw = port => port.state === 'connected' && AfterhoursMPKProtocol.daw(port);
+      return {
+        input: [...(midi?.inputs.values() || [])].find(daw),
+        output: [...(midi?.outputs.values() || [])].find(daw),
+        sysex: emulated || physicalSysex,
+      };
+    },
+    ownsEmulatorNote: id => !!emulatorAccess && (voices.has(id) || id.startsWith('mpk-emulator-pad:')),
     receive,
     learn,
     skip: advanceLearning,
@@ -441,10 +463,10 @@ window.AfterhoursLiveMIDI = (() => {
     get lastMessage() {
       return lastMessage;
     },
-    outputs(activeOnly = false) {
+    outputs() {
       const ports = [...(access?.outputs.values() || [])];
       // Keep an existing hardware clock output available while playing the emulator.
-      if (!activeOnly && emulatorAccess && physicalAccess) ports.push(...physicalAccess.outputs.values());
+      if (emulatorAccess && physicalAccess) ports.push(...physicalAccess.outputs.values());
       return ports.filter(o => o.state === 'connected');
     },
     release: releaseDevice,

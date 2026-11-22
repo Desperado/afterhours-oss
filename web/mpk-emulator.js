@@ -81,6 +81,11 @@ window.createAfterhoursMPKEmulator = () => {
     0xf7,
   ];
   const ascii = bytes => String.fromCharCode(...bytes.filter(b => b >= 32 && b < 127));
+  const clockTimers = new Set();
+  function clearClock() {
+    for (const timer of clockTimers) clearTimeout(timer);
+    clockTimers.clear();
+  }
   // What Afterhours sends to the DAW port: identity, mode queries, display and lights.
   function hostMessage(bytes) {
     if (bytes[0] === 0xf0 && bytes[1] === 0x7e) {
@@ -110,12 +115,23 @@ window.createAfterhoursMPKEmulator = () => {
           // Afterhours' MIDI clock output: 24 pulses per beat, Start/Stop/Continue.
           if (bytes[0] === 0xf8) {
             state.clock++;
-            if (state.arpClock === 'external')
-              setTimeout(() => clockPulse(), Math.max(0, (at ?? 0) - performance.now()));
-          } else if (bytes[0] === 0xfa) pulses = 0;
-          else if (bytes[0] === 0xfc) arpStep(true);
+            if (state.plugged && state.arpClock === 'external') {
+              const timer = setTimeout(
+                () => {
+                  clockTimers.delete(timer);
+                  clockPulse();
+                },
+                Math.max(0, (at ?? 0) - performance.now()),
+              );
+              clockTimers.add(timer);
+            }
+          } else if (bytes[0] === 0xfa || bytes[0] === 0xfc) {
+            clearClock();
+            if (bytes[0] === 0xfa) pulses = 0;
+            if (state.arpClock === 'external') arpStep(true);
+          }
         },
-        clear() {},
+        clear: clearClock,
       },
     ],
   ]);
@@ -141,13 +157,15 @@ window.createAfterhoursMPKEmulator = () => {
     arpIndex = 0,
     sounding = null;
   const held = new Map(); // physical key → notes and playback mode at key-down
+  const directHeld = note => [...held.values()].some(key => !key.arp && key.notes.includes(note));
+  const heldArpNotes = () => [...new Set([...held.values()].filter(key => key.arp).flatMap(key => key.notes))];
   function arpStep(stop = false) {
-    if (sounding !== null) emit('mpk-midi', [0x80, sounding, 0]);
+    if (sounding !== null && !directHeld(sounding)) emit('mpk-midi', [0x80, sounding, 0]);
     sounding = null;
     if (stop || !state.arp || !state.arpNotes.length) return;
     const notes = [...state.arpNotes].sort((a, b) => a - b);
     sounding = notes[arpIndex++ % notes.length];
-    emit('mpk-midi', [0x90, sounding, 100]);
+    if (!directHeld(sounding)) emit('mpk-midi', [0x90, sounding, 100]);
   }
   function clockPulse() {
     if (state.plugged && ++pulses % 12 === 0) arpStep(); // 1/8 at 24 PPQN
@@ -170,20 +188,20 @@ window.createAfterhoursMPKEmulator = () => {
   // SHIFT functions as printed on the Plus II panel (they differ from the mini IV guide):
   // ARP / CONFIG, LATCH / FREEZE, CHORDS / CONFIG, SCALES / CONFIG, NOTE REPEAT / FULL LEVEL.
   const CONFIG = {arp: 'Arp Config', chords: 'Chord Config', scales: 'Scale Config'};
+  let clockChoice = state.arpClock;
+  let encoderMenu = null;
   function performanceButton(name, shift) {
     if (shift && CONFIG[name]) {
       // SHIFT + ARP / CHORDS / SCALES opens that configuration on the display.
       state.menu = state.menu === CONFIG[name] ? (closeMenu(), null) : CONFIG[name];
+      if (state.menu === CONFIG.arp) clockChoice = state.arpClock;
       return;
     }
     if (name === 'latch') {
       if (shift) state.freeze = !state.freeze;
       else {
         state.latch = !state.latch;
-        if (!state.latch) {
-          const notes = [...held.values()].filter(key => key.arp).flatMap(key => key.notes);
-          state.arpNotes = [...new Set(notes)];
-        }
+        if (!state.latch && state.arp) state.arpNotes = heldArpNotes();
       }
     } else if (name === 'note-repeat' && shift) state.fullLevel = !state.fullLevel;
     else if (name === 'note-repeat') state.repeat = !state.repeat;
@@ -206,8 +224,6 @@ window.createAfterhoursMPKEmulator = () => {
     padFlashes,
     dispose() {
       this.plug(false);
-      clearInterval(arpTimer);
-      for (const timer of repeats.values()) clearInterval(timer);
     },
     button(name, {shift = false} = {}) {
       const releaseShift = shift && !state.shift;
@@ -308,28 +324,36 @@ window.createAfterhoursMPKEmulator = () => {
     },
     encoder(steps) {
       // Akai guide: inside a firmware menu the encoder browses that menu.
+      if (state.menu === CONFIG.arp && steps) clockChoice = steps > 0 ? 'external' : 'internal';
       if (state.menu) return;
       for (let i = 0; i < Math.abs(steps); i++) cc(CC.encoder, steps > 0 ? 1 : 127);
     },
     encoderPush(down) {
+      if (!!state.encoderDown === down) return;
       state.encoderDown = down;
-      if (state.menu) return;
-      cc(CC.encoderPush, down ? 127 : 0);
+      if (down) encoderMenu = state.menu;
+      if (!encoderMenu) cc(CC.encoderPush, down ? 127 : 0);
+      else if (!down && encoderMenu === CONFIG.arp && state.menu === CONFIG.arp) {
+        this.arpClock(clockChoice);
+        closeMenu();
+      }
     },
     keyDown(note, velocity = 100) {
+      if (!state.plugged || held.has(note)) return;
       let played = note + state.octave * 12;
       if (state.scales) played = snap(played);
-      const notes = state.chords ? [played, played + 4, played + 7] : [played];
+      const notes = (state.chords ? [played, played + 4, played + 7] : [played]).filter(n => n >= 0 && n <= 127);
       const arp = state.arp;
       // With Latch, a new chord replaces the latched one once every key had been released.
       if (arp && state.latch && !held.size) state.arpNotes = [];
+      const attacks = arp ? [] : notes.filter(n => n !== sounding && !directHeld(n));
       held.set(note, {notes, arp});
       if (arp) {
         state.arpNotes = [...new Set([...state.arpNotes, ...notes])];
         if (state.arpClock === 'internal' && !arpTimer) arpRun();
         return;
       }
-      for (const n of notes) emit('mpk-midi', [0x90, n, velocity]);
+      for (const n of attacks) emit('mpk-midi', [0x90, n, velocity]);
     },
     keyUp(note) {
       const key = held.get(note);
@@ -337,10 +361,10 @@ window.createAfterhoursMPKEmulator = () => {
       held.delete(note);
       const {notes, arp} = key;
       if (arp) {
-        if (!state.latch) state.arpNotes = state.arpNotes.filter(n => !notes.includes(n));
+        if (!state.latch && state.arp) state.arpNotes = heldArpNotes();
         return;
       }
-      for (const n of notes) emit('mpk-midi', [0x80, n, 0]);
+      for (const n of notes) if (n !== sounding && !directHeld(n)) emit('mpk-midi', [0x80, n, 0]);
     },
     // value −1…1
     pitchWheel(value) {
@@ -356,6 +380,8 @@ window.createAfterhoursMPKEmulator = () => {
     },
     // Arp Config → Clock: Internal / External.
     arpClock(source) {
+      clearClock();
+      arpStep(true);
       state.arpClock = source;
       pulses = 0;
       arpRun();
@@ -363,6 +389,8 @@ window.createAfterhoursMPKEmulator = () => {
     // Only what the player can actually see on the device.
     screen() {
       if (!state.plugged) return ['', '', ''];
+      if (state.menu === CONFIG.arp)
+        return [state.menu, `Clock: ${clockChoice === 'external' ? 'External' : 'Internal'}`, 'Push to apply'];
       if (state.menu) return [state.menu, '', ''];
       if (state.mode !== 'daw' || state.owner !== 'host')
         return [`Preset:${state.mode === 'daw' ? 'DAW' : state.mode === 'plugin' ? 'Plugin' : 'User'}`, 'BPM:120', ''];
@@ -374,6 +402,19 @@ window.createAfterhoursMPKEmulator = () => {
       if (!connected) {
         state.owner = 'firmware';
         state.lights = {};
+        state.sustain = state.shift = state.encoderDown = false;
+        state.arpNotes = [];
+        held.clear();
+        pressedPads.clear();
+        for (const timer of repeats.values()) clearInterval(timer);
+        repeats.clear();
+        clearClock();
+        pulses = 0;
+        clearInterval(arpTimer);
+        arpTimer = null;
+        arpStep(true);
+      } else if (state.arp) {
+        arpRun();
       }
       access.onstatechange?.({port: inputs.get('mpk-daw')});
     },

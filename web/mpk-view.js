@@ -87,25 +87,62 @@ window.mountAfterhoursMPKView = (mpk, {onClose} = {}) => {
     b.addEventListener('click', () => mpk.button(name));
     return b;
   };
+  const endPresses = [];
   const momentary = (control, down, up) => {
-    let pointer = null;
+    let pointer = null,
+      keyboard = false,
+      started = null,
+      timer;
+    const end = () => {
+      clearTimeout(timer);
+      if (started !== null) up();
+      started = null;
+      keyboard = false;
+      pointer = null;
+    };
+    const begin = () => {
+      end();
+      started = performance.now();
+      down();
+    };
+    // Short keyboard activations need time for Synth to prepare its audio voice.
+    const releaseKey = () => {
+      keyboard = false;
+      timer = setTimeout(end, Math.max(0, 180 - (performance.now() - started)));
+    };
+    const activation = e => e.key === 'Enter' || e.key === ' ';
+    endPresses.push(end);
     control.addEventListener('pointerdown', e => {
       if (pointer !== null || e.button !== 0) return;
+      begin();
       pointer = e.pointerId;
       control.setPointerCapture(pointer);
-      down();
     });
     for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) {
       control.addEventListener(event, e => {
         if (pointer !== e.pointerId) return;
-        pointer = null;
-        up();
+        end();
       });
     }
+    control.addEventListener('keydown', e => {
+      if (!activation(e)) return;
+      e.preventDefault();
+      if (e.repeat || pointer !== null) return;
+      begin();
+      keyboard = true;
+    });
+    control.addEventListener('keyup', e => {
+      if (!activation(e)) return;
+      e.preventDefault();
+      if (keyboard) releaseKey();
+    });
+    control.addEventListener('blur', () => {
+      if (keyboard) releaseKey();
+    });
     control.addEventListener('click', e => {
-      if (e.detail === 0) {
-        down();
-        up();
+      if (e.detail === 0 && pointer === null && !keyboard) {
+        begin();
+        releaseKey();
       }
     });
   };
@@ -273,6 +310,7 @@ window.mountAfterhoursMPKView = (mpk, {onClose} = {}) => {
   ]) {
     const wrap = el('label');
     perfButtons[name] = button(label, name);
+    perfButtons[name].setAttribute('aria-label', label);
     wrap.append(perfButtons[name], el('span', '', second));
     perf.append(wrap);
   }
@@ -285,10 +323,15 @@ window.mountAfterhoursMPKView = (mpk, {onClose} = {}) => {
   let frameWindow = window;
   let screenText;
   let statusText;
+  const releasePresses = () => endPresses.forEach(end => end());
+  frameWindow.addEventListener('blur', releasePresses);
   function moveView(target) {
+    releasePresses();
+    frameWindow.removeEventListener('blur', releasePresses);
     frameWindow.cancelAnimationFrame(frame);
     target.document.body.append(root);
     frameWindow = target;
+    frameWindow.addEventListener('blur', releasePresses);
     paint();
     detach.focus();
   }
@@ -388,6 +431,8 @@ window.mountAfterhoursMPKView = (mpk, {onClose} = {}) => {
   return () => {
     const target = popup;
     popup = null;
+    releasePresses();
+    frameWindow.removeEventListener('blur', releasePresses);
     frameWindow.cancelAnimationFrame(frame);
     root.remove();
     if (target && !target.closed) target.close();

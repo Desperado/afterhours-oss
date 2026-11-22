@@ -122,6 +122,43 @@ test('performing over a loaded song: take with knob moves, pattern change and a 
   await stop(page);
 });
 
+for (const [action, cancel] of [
+  ['a second MPK Play/Stop press', () => mpk.press('play')],
+  ['MPK Panic', () => mpk.press('loop', {shift: true})],
+  ['the toolbar Stop button', page => page.locator('#transport-stop').click()],
+]) {
+  test(`${action} cancels queued song playback while the previous take is saving`, async ({page}) => {
+    await play(page);
+    const before = await live.title(page);
+    await mpk.press('record');
+    await expect.poll(() => live.recording(page)).toBe(true);
+    await mpk.playKey(60);
+    await page.evaluate(() => {
+      const stopAudio = AfterhoursAudio.stop;
+      AfterhoursAudio.stop = async () => {
+        const take = await stopAudio();
+        await new Promise(resolve => (window.finishAudioStop = resolve));
+        return take;
+      };
+    });
+    await mpk.press('bank+', {shift: true});
+    await mpk.press('play');
+    await expect.poll(() => page.evaluate(() => typeof window.finishAudioStop)).toBe('function');
+    expect(await live.running(page)).toBe(false);
+
+    await cancel(page);
+    await page.evaluate(() => window.finishAudioStop());
+    await expect(page.locator('#performance-status')).toContainText('Take saved locally');
+    expect(await live.title(page)).toBe(before);
+    expect(await live.running(page)).toBe(false);
+
+    await mpk.press('play');
+    await expect.poll(() => live.title(page)).not.toBe(before);
+    await expect.poll(() => live.running(page)).toBe(true);
+    await stop(page);
+  });
+}
+
 test('switching to Plugin mode with keys held and a take recording, then back', async ({page}) => {
   await play(page);
   await mpk.press('record');

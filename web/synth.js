@@ -507,9 +507,15 @@
   new MutationObserver(() => {
     if ($('workspace').hidden) panic();
   }).observe($('workspace'), {attributes: true, attributeFilter: ['hidden']});
-  window.addEventListener('blur', panic);
+  function releaseOnBlur() {
+    const midi = window.AfterhoursLiveMIDI;
+    if (!midi?.emulating) return panic();
+    // The detached widget still plays this Synth when its parent loses focus.
+    for (const id of held.keys()) if (!midi.ownsEmulatorNote(id)) off(id);
+  }
+  window.addEventListener('blur', releaseOnBlur);
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) panic();
+    if (document.hidden) releaseOnBlur();
   });
   window.addEventListener('pagehide', () => {
     panic();

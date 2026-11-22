@@ -69,6 +69,7 @@
     tone = message === 'Groove stopped' ? 'ok' : 'err',
     tails = false,
   ) {
+    window.dispatchEvent(new Event('afterhours:groovestop'));
     const frame = audibleFrame();
     stoppedPosition =
       S.running && !S.sync && frame && message === 'Groove stopped'

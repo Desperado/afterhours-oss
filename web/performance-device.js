@@ -355,6 +355,7 @@
     }
   });
   window.addEventListener('afterhours:mididevices', () => {
+    hardwareStatus();
     const previous = $('clock').value;
     const outputs = M.outputs();
     $('clock').replaceChildren(

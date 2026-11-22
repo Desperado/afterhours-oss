@@ -3599,6 +3599,12 @@ input.level-slider:focus-visible {
     min-width: 0;
   }
 }
+@media (max-width: 410px) {
+  .rail {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
 @media (max-width: 620px) {
   .strip .lang-picker {
     grid-column: 2;
