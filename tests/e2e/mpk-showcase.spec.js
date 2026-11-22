@@ -68,5 +68,20 @@ test('MPK walkthrough: build a song, menus, songs, takes, Plugin mode', async ({
   await mpk.press('plugin-daw');
   await pause(1200);
   await shot('11-back-to-daw');
+  // Performance buttons: chords through the arpeggiator, latched.
+  await mpk.press('chords');
+  await mpk.press('arp');
+  await mpk.press('latch');
+  await mpk.keyDown(57);
+  await pause(900);
+  await shot('12-arp-latch-chords');
+  await mpk.keyUp(57);
+  await pause(1200);
+  await mpk.press('arp', {shift: true});
+  await pause(600);
+  await shot('13-arp-config');
+  await mpk.press('plugin-daw');
+  await mpk.press('arp');
+  await pause(600);
   await page.screenshot({path: dir + 'full-app.png'});
 });

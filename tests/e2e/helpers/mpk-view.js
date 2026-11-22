@@ -57,6 +57,12 @@ function mpkView() {
     #mpk-view .white{position:absolute;top:0;width:20px;height:60px;background:#fff;border:1px solid #888;border-radius:0 0 3px 3px}
     #mpk-view .black{position:absolute;top:0;width:13px;height:37px;background:#111;border-radius:0 0 2px 2px;z-index:1}
     #mpk-view .white.down,#mpk-view .black.down{background:#ff4b4b}
+    #mpk-view .perf{display:flex;gap:6px;margin-top:8px}
+    #mpk-view .perf label{display:flex;flex-direction:column;align-items:center;gap:2px;font-size:8px;color:#8b1d24}
+    #mpk-view .perf button{min-width:56px}
+    #mpk-view .perf button.lit{background:#ff3b3b}
+    #mpk-view .wheels{display:flex;gap:6px}
+    #mpk-view .wheels input{writing-mode:vertical-lr;direction:rtl;width:22px;height:60px;accent-color:#8b1d24}
     #mpk-view .status{margin-top:6px;display:flex;gap:14px;font-size:10px;color:#555}
     #mpk-view .status b{color:#8b1d24}`;
   function build() {
@@ -141,8 +147,26 @@ function mpkView() {
     transport.append(...Object.values(lightButtons));
     const right = el('div', 'col');
     right.append(knobs, transport);
+    // Pitch wheel springs back to centre; the mod wheel stays where it is left.
+    const wheels = el('div', 'wheels');
+    const pitch = el('input'),
+      mod = el('input');
+    for (const [input, max, value] of [
+      [pitch, 100, 50],
+      [mod, 127, 0],
+    ])
+      Object.assign(input, {type: 'range', min: 0, max, value});
+    pitch.title = 'Pitch';
+    mod.title = 'Mod';
+    pitch.addEventListener('input', () => mpk.pitchWheel((pitch.value - 50) / 50));
+    pitch.addEventListener('pointerup', () => {
+      pitch.value = 50;
+      mpk.pitchWheel(0);
+    });
+    mod.addEventListener('input', () => mpk.modWheel(Number(mod.value)));
+    wheels.append(pitch, mod);
     const octave = el('div', 'col');
-    octave.append(button('OCT −', 'oct-'), button('OCT +', 'oct+'));
+    octave.append(wheels, button('OCT −', 'oct-'), button('OCT +', 'oct+'));
     const top = el('div', 'row');
     top.append(octave, left, encoder, pads, right);
     // 37 keys, C3–C6.
@@ -160,8 +184,23 @@ function mpkView() {
       keys.append(key);
       keyNodes.set(note, key);
     }
+    // ARP, LATCH, CHORDS, SCALES and NOTE REPEAT, with their SHIFT functions printed underneath.
+    const perf = el('div', 'perf');
+    const perfButtons = {};
+    for (const [name, label, second] of [
+      ['arp', 'ARP', 'CONFIG'],
+      ['latch', 'LATCH', 'FREEZE'],
+      ['chords', 'CHORDS', 'CONFIG'],
+      ['scales', 'SCALES', 'CONFIG'],
+      ['note-repeat', 'NOTE REPEAT', 'FULL LEVEL'],
+    ]) {
+      const wrap = el('label');
+      perfButtons[name] = button(label, name);
+      wrap.append(perfButtons[name], el('span', '', second));
+      perf.append(wrap);
+    }
     const status = el('div', 'status');
-    root.append(style, brand, top, keys, status);
+    root.append(style, brand, top, perf, keys, status);
     document.body.append(root);
     // Held keys, as the host hears them (after octave shift).
     const held = new Set();
@@ -211,6 +250,8 @@ function mpkView() {
           : '#2a2a2a';
         b.classList.toggle('lit', !!lit);
       }
+      const flags = {arp: s.arp, latch: s.latch, chords: s.chords, scales: s.scales, 'note-repeat': s.repeat};
+      for (const [name, b] of Object.entries(perfButtons)) b.classList.toggle('lit', !!flags[name]);
       shift.classList.toggle('on', s.shift);
       encoder.classList.toggle('down', !!s.encoderDown);
       for (const [note, key] of keyNodes) key.classList.toggle('down', held.has(note));
@@ -221,6 +262,8 @@ function mpkView() {
         ['Octave', (s.octave > 0 ? '+' : '') + s.octave],
         ['Screen', s.menu ? `firmware menu: ${s.menu}` : s.owner === 'host' ? 'Afterhours' : 'firmware'],
         ['USB', s.plugged ? 'connected' : 'unplugged'],
+        ['Arp clock', s.arpClock],
+        ['Full Level', s.fullLevel ? 'on' : 'off'],
       ]) {
         const item = el('span', '', label + ' ');
         item.append(el('b', '', value));

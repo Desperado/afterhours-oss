@@ -144,6 +144,7 @@ What it emulates:
 - **Modes:** DAW, Plugin (PLUGIN/DAW) and User Presets (`SHIFT` + PLUGIN/DAW). Controls go to the port of the current mode, and the mode change is announced as the hardware does.
 - **Controls:** keys with octave shift, pads on banks A/B with velocity, relative knobs and encoder, encoder push, `SHIFT` and every transport and bank button.
 - **Firmware:** `SHIFT` + pads 5–8 open and close the Prog/Chord menus, which take over the screen and the encoder; closing one asks the host to redraw.
+- **Performance buttons:** ARP (Up, 1/8, on the internal clock or Afterhours' MIDI clock), LATCH, FREEZE, CHORDS (triads), SCALES (C major), NOTE REPEAT and FULL LEVEL, and the ARP/CHORDS/SCALES config screens that PLUGIN/DAW closes. Pitch and mod wheels and the sustain pedal play through the MIDI port.
 - **Feedback:** the three display lines Afterhours writes, screen ownership and the pad and button lights with their animation.
 
 To watch it, draw the controller on the page: `MPK.install(page, {view: true})`, or run any MPK test with `MPK_VIEW=1`. The drawn MPK shows the display, pad and button colours, held keys, `SHIFT` labels, the mode and the screen owner, and it can be played with the mouse: click pads, keys and buttons, and scroll on knobs and the encoder. `MPK_SHOWCASE=1 npx playwright test mpk-showcase` records a walkthrough as frames and a video in `test-results/mpk-showcase/`.

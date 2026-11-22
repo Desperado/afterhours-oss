@@ -55,6 +55,19 @@ function emulator() {
     received: [],
     clock: 0,
     sysexAllowed: true,
+    // The five performance buttons are local firmware functions; nothing is sent to the host for them.
+    arp: false,
+    latch: false,
+    freeze: false,
+    chords: false,
+    scales: false,
+    repeat: false,
+    fullLevel: false,
+    // ASSUMPTION: factory arp is Up, 1/8; internal clock 120 BPM; Arp Config can select an external clock.
+    arpClock: 'internal',
+    tempo: 120,
+    arpNotes: [],
+    sustain: false,
   };
   const emit = (id, bytes) => {
     if (!state.plugged) return;
@@ -100,8 +113,14 @@ function emulator() {
       'mpk-midi-out',
       {
         ...port('mpk-midi-out', 'MPK mini Plus II MIDI Port'),
-        send(bytes) {
-          if (bytes[0] === 0xf8) state.clock++;
+        send(bytes, at) {
+          // Afterhours' MIDI clock output: 24 pulses per beat, Start/Stop/Continue.
+          if (bytes[0] === 0xf8) {
+            state.clock++;
+            if (state.arpClock === 'external')
+              setTimeout(() => clockPulse(), Math.max(0, (at ?? 0) - performance.now()));
+          } else if (bytes[0] === 0xfa) pulses = 0;
+          else if (bytes[0] === 0xfc) arpStep(true);
         },
         clear() {},
       },
@@ -120,12 +139,67 @@ function emulator() {
   const controlPort = () => (state.mode === 'daw' ? 'mpk-daw' : state.mode === 'plugin' ? 'mpk-plugin' : 'mpk-midi');
   const cc = (number, value) => emit(controlPort(), [0xb0, number, value]);
   const knobValues = Array(8).fill(0);
+  const repeats = new Map();
   function setMode(mode) {
     state.mode = mode;
     state.menu = null;
     if (mode !== 'daw') state.owner = 'firmware';
     // The firmware announces a mode change; Bitwig reacts to the same unsolicited 0x2D message.
     emit('mpk-daw', sysex(0x2d, [MODES[mode]]));
+  }
+  // Arpeggiator: held (or latched) notes play one at a time, upwards, on the MIDI port.
+  let pulses = 0,
+    arpTimer = null,
+    arpIndex = 0,
+    sounding = null;
+  const held = new Map(); // physical key → notes it sounds
+  function arpStep(stop = false) {
+    if (sounding !== null) emit('mpk-midi', [0x80, sounding, 0]);
+    sounding = null;
+    if (stop || !state.arp || !state.arpNotes.length) return;
+    const notes = [...state.arpNotes].sort((a, b) => a - b);
+    sounding = notes[arpIndex++ % notes.length];
+    emit('mpk-midi', [0x90, sounding, 100]);
+  }
+  function clockPulse() {
+    if (++pulses % 12 === 0) arpStep(); // 1/8 at 24 PPQN
+  }
+  function arpRun() {
+    clearInterval(arpTimer);
+    arpTimer = null;
+    if (state.arp && state.arpClock === 'internal') arpTimer = setInterval(arpStep, 30000 / state.tempo);
+    if (!state.arp) {
+      arpStep(true);
+      state.arpNotes = [];
+    }
+  }
+  // ASSUMPTION: Scales default to C major and snap down; Chords default to a major triad.
+  const MAJOR = [0, 2, 4, 5, 7, 9, 11];
+  const snap = note => {
+    while (!MAJOR.includes(((note % 12) + 12) % 12)) note--;
+    return note;
+  };
+  // SHIFT functions as printed on the Plus II panel (they differ from the mini IV guide):
+  // ARP / CONFIG, LATCH / FREEZE, CHORDS / CONFIG, SCALES / CONFIG, NOTE REPEAT / FULL LEVEL.
+  const CONFIG = {arp: 'Arp Config', chords: 'Chord Config', scales: 'Scale Config'};
+  function performanceButton(name, shift) {
+    if (shift && CONFIG[name]) {
+      // SHIFT + ARP / CHORDS / SCALES opens that configuration on the display.
+      state.menu = state.menu === CONFIG[name] ? (closeMenu(), null) : CONFIG[name];
+      return;
+    }
+    if (name === 'latch') {
+      if (shift) state.freeze = !state.freeze;
+      else {
+        state.latch = !state.latch;
+        if (!state.latch) state.arpNotes = [...held.keys()].map(n => n + state.octave * 12);
+      }
+    } else if (name === 'note-repeat' && shift) state.fullLevel = !state.fullLevel;
+    else if (name === 'note-repeat') state.repeat = !state.repeat;
+    else {
+      state[name] = !state[name];
+      if (name === 'arp') arpRun();
+    }
   }
   function closeMenu() {
     if (!state.menu) return;
@@ -137,9 +211,14 @@ function emulator() {
     state,
     button(name, {shift = false} = {}) {
       if (shift) this.shift(true);
-      if (name === 'plugin-daw') {
+      if (name === 'plugin-daw' && state.menu && !shift) {
+        // Akai guide: PLUGIN/DAW exits a configuration menu.
+        closeMenu();
+      } else if (name === 'plugin-daw') {
         // Akai guide: PLUGIN/DAW toggles Plugin/DAW; SHIFT + PLUGIN/DAW opens User Presets.
         setMode(shift ? 'preset' : state.mode === 'daw' ? 'plugin' : 'daw');
+      } else if (['arp', 'latch', 'chords', 'scales', 'note-repeat'].includes(name)) {
+        performanceButton(name, shift);
       } else if (name === 'oct-' || name === 'oct+') {
         state.octave = Math.max(-4, Math.min(4, state.octave + (name === 'oct+' ? 1 : -1)));
       } else {
@@ -172,14 +251,26 @@ function emulator() {
         else state.padMode = PAD_MODES[index - 1];
       }
       // ASSUMPTION: the pad note still reaches the host with SHIFT held (the original menu bug relied on it).
-      emit(state.mode === 'plugin' ? 'mpk-plugin' : state.mode === 'daw' ? 'mpk-daw' : 'mpk-midi', [
-        0x99,
-        note,
-        velocity,
-      ]);
+      const padPort = state.mode === 'plugin' ? 'mpk-plugin' : state.mode === 'daw' ? 'mpk-daw' : 'mpk-midi';
+      // Akai guide: Full Level sends every pad at 127.
+      if (state.fullLevel) velocity = 127;
+      emit(padPort, [0x99, note, velocity]);
+      // Note Repeat retriggers a held pad at 1/16 of the firmware tempo.
+      if (state.repeat && !state.shift) {
+        clearInterval(repeats.get(note));
+        repeats.set(
+          note,
+          setInterval(() => {
+            emit(padPort, [0x89, note, 0]);
+            emit(padPort, [0x99, note, velocity]);
+          }, 15000 / state.tempo),
+        );
+      }
       return note;
     },
     padUp(note) {
+      clearInterval(repeats.get(note));
+      repeats.delete(note);
       emit(state.mode === 'plugin' ? 'mpk-plugin' : state.mode === 'daw' ? 'mpk-daw' : 'mpk-midi', [0x89, note, 0]);
     },
     tapPad(pad, velocity = 100, shift = false) {
@@ -213,10 +304,46 @@ function emulator() {
       cc(CC.encoderPush, down ? 127 : 0);
     },
     keyDown(note, velocity = 100) {
-      emit('mpk-midi', [0x90, note + state.octave * 12, velocity]);
+      let played = note + state.octave * 12;
+      if (state.scales) played = snap(played);
+      const notes = state.chords ? [played, played + 4, played + 7] : [played];
+      if (state.arp) {
+        // With Latch, a new chord replaces the latched one once every key had been released.
+        if (state.latch && !held.size) state.arpNotes = [];
+        held.set(note, notes);
+        state.arpNotes = [...new Set([...state.arpNotes, ...notes])];
+        if (state.arpClock === 'internal' && !arpTimer) arpRun();
+        return;
+      }
+      held.set(note, notes);
+      for (const n of notes) emit('mpk-midi', [0x90, n, velocity]);
     },
     keyUp(note) {
-      emit('mpk-midi', [0x80, note + state.octave * 12, 0]);
+      const notes = held.get(note) || [note + state.octave * 12];
+      held.delete(note);
+      if (state.arp) {
+        if (!state.latch) state.arpNotes = state.arpNotes.filter(n => !notes.includes(n));
+        return;
+      }
+      for (const n of notes) emit('mpk-midi', [0x80, n, 0]);
+    },
+    // value −1…1
+    pitchWheel(value) {
+      const v = Math.max(0, Math.min(16383, Math.round(8192 + value * 8191)));
+      emit('mpk-midi', [0xe0, v & 127, v >> 7]);
+    },
+    modWheel(value) {
+      emit('mpk-midi', [0xb0, 1, value]);
+    },
+    sustainPedal(down) {
+      state.sustain = down;
+      emit('mpk-midi', [0xb0, 64, down ? 127 : 0]);
+    },
+    // Arp Config → Clock: Internal / External.
+    arpClock(source) {
+      state.arpClock = source;
+      pulses = 0;
+      arpRun();
     },
     // Only what the player can actually see on the device.
     screen() {
@@ -239,6 +366,7 @@ function emulator() {
 }
 
 const LIGHT = {undo: 73, loop: 74, play: 76, record: 77, quantize: 78, 'bank-': 80, 'bank+': 81, tap: 82};
+const FIRMWARE_LIGHT = {arp: 'arp', latch: 'latch', chords: 'chords', scales: 'scales', 'note-repeat': 'repeat'};
 
 // Test-side handle: every method is a physical action or an observation.
 class MPK {
@@ -279,6 +407,24 @@ class MPK {
       await this.run('encoderPush', false);
     }
   }
+  // Hold a pad for ms (Note Repeat retriggers it meanwhile).
+  async holdPad(pad, ms, {velocity = 100} = {}) {
+    const note = await this.run('padDown', pad, velocity);
+    await this.page.waitForTimeout(ms);
+    await this.run('padUp', note);
+  }
+  pitchWheel(value) {
+    return this.run('pitchWheel', value);
+  }
+  modWheel(value) {
+    return this.run('modWheel', value);
+  }
+  sustainPedal(down) {
+    return this.run('sustainPedal', down);
+  }
+  setArpClock(source) {
+    return this.run('arpClock', source);
+  }
   pushEncoder() {
     return this.holdEncoder(async () => {});
   }
@@ -313,6 +459,12 @@ class MPK {
   }
   // light('play'), light('A3'), light('B8')
   light(name) {
+    // ARP, LATCH, CHORDS, SCALES and NOTE REPEAT are lit by the firmware itself.
+    if (FIRMWARE_LIGHT[name])
+      return this.state().then(s => ({
+        color: s[FIRMWARE_LIGHT[name]] ? 127 : 0,
+        animation: s[FIRMWARE_LIGHT[name]] ? 6 : 0,
+      }));
     const id = /^[AB][1-8]$/.test(name) ? 36 + (name[0] === 'B' ? 8 : 0) + Number(name[1]) - 1 : LIGHT[name];
     return this.run('light', id);
   }

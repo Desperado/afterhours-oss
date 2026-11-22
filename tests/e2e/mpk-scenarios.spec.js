@@ -249,3 +249,142 @@ test('unplugging mid-song releases held notes; plugging back in restores the dis
   await expect(page.locator('#performance-midi-hardware')).toContainText('MPK connected');
   await mpk.expectScreen([await app.title(page), undefined, /^STOP /]);
 });
+
+// ── The five performance buttons, wheels and pedal: local firmware functions heard through the MIDI port.
+async function listenNotes(page) {
+  await page.evaluate(() => {
+    window.__heard = [];
+    window.addEventListener('afterhours:gesture', e => {
+      if (e.detail.type === 'noteOn') __heard.push(e.detail.value.note);
+      if (e.detail.type === 'expression' && e.detail.value.type === 'bend')
+        __heard.push('bend:' + e.detail.value.value.toFixed(2));
+    });
+  });
+}
+const heard = page => page.evaluate(() => [...__heard]);
+const heardNotes = async page => (await heard(page)).filter(n => typeof n === 'number');
+const synthNotes = page =>
+  page.evaluate(() =>
+    AfterhoursSynth.held()
+      .map(n => n.note)
+      .sort((a, b) => a - b),
+  );
+
+test('CHORDS plays a triad from one key; SCALES snaps a wrong note into the scale', async ({page}) => {
+  await connect(page);
+  await mpk.press('chords');
+  expect((await mpk.light('chords')).color).toBe(127);
+  await mpk.keyDown(60);
+  await expect.poll(() => synthNotes(page)).toHaveLength(3);
+  const [root, third, fifth] = await synthNotes(page);
+  expect([third - root, fifth - root]).toEqual([4, 7]);
+  await mpk.keyUp(60);
+  await expect.poll(() => synthNotes(page)).toEqual([]);
+  await mpk.press('chords');
+  await mpk.press('scales');
+  await mpk.keyDown(61); // C♯ is outside C major
+  await expect.poll(() => synthNotes(page)).toHaveLength(1);
+  const snapped = (await synthNotes(page))[0];
+  await mpk.keyUp(61);
+  await mpk.press('scales');
+  await mpk.keyDown(61);
+  await expect.poll(() => synthNotes(page)).toHaveLength(1);
+  expect((await synthNotes(page))[0] - snapped).toBe(1);
+  await mpk.keyUp(61);
+});
+
+test('ARP plays held notes one by one; LATCH keeps it going after the keys are released', async ({page}) => {
+  await connect(page);
+  await listenNotes(page);
+  await mpk.press('arp');
+  await mpk.press('latch');
+  for (const note of [60, 64, 67]) await mpk.keyDown(note);
+  for (const note of [60, 64, 67]) await mpk.keyUp(note);
+  // Released, but latched: the arpeggio keeps cycling upwards through the chord.
+  await expect.poll(async () => (await heardNotes(page)).length, {timeout: 4000}).toBeGreaterThanOrEqual(6);
+  const notes = await heardNotes(page);
+  expect(new Set(notes)).toEqual(new Set([60, 64, 67]));
+  expect(notes.slice(0, 3)).toEqual([60, 64, 67]);
+  // Turning ARP off stops it and releases the last note.
+  await mpk.press('arp');
+  await expect.poll(() => synthNotes(page)).toEqual([]);
+  const count = (await heardNotes(page)).length;
+  await page.waitForTimeout(600);
+  expect((await heardNotes(page)).length).toBe(count);
+});
+
+test('ARP on external clock follows Afterhours’ MIDI clock: it runs only while Groove plays', async ({page}) => {
+  await connect(page);
+  await listenNotes(page);
+  await page.getByText('USB MIDI + MIDI Learn').click();
+  const clockOutput = page.locator('#performance-midi-clock');
+  await clockOutput.selectOption({label: 'MPK mini Plus II MIDI Port'});
+  await mpk.setArpClock('external');
+  await mpk.press('arp');
+  await mpk.press('latch');
+  await mpk.keyDown(48);
+  await mpk.keyDown(55);
+  await mpk.keyUp(48);
+  await mpk.keyUp(55);
+  await page.waitForTimeout(700);
+  expect(await heardNotes(page)).toEqual([]); // no clock, no steps
+  await mpk.press('play');
+  await expect.poll(async () => (await heardNotes(page)).length, {timeout: 5000}).toBeGreaterThanOrEqual(4);
+  expect((await mpk.state()).clock).toBeGreaterThan(24);
+  await mpk.press('play');
+  await expect.poll(() => app.running(page)).toBe(false);
+  await page.waitForTimeout(300);
+  const count = (await heardNotes(page)).length;
+  await page.waitForTimeout(800);
+  expect((await heardNotes(page)).length).toBe(count);
+});
+
+test('NOTE REPEAT with FULL LEVEL records a held pad as a run of full-velocity steps', async ({page}) => {
+  await connect(page);
+  await page.locator('#song-new').click();
+  await mpk.press('pad-bank', {shift: true}); // pads: beat
+  await mpk.press('note-repeat');
+  await mpk.press('note-repeat', {shift: true}); // Full Level
+  expect((await mpk.state()).fullLevel).toBe(true);
+  await playing(page);
+  await mpk.holdPad('A3', 700, {velocity: 40});
+  await expect.poll(() => app.steps(page, 2)).toBeGreaterThanOrEqual(4);
+  const velocities = await page.evaluate(() =>
+    AfterhoursGrooveApp.S.data.patterns[AfterhoursGrooveApp.S.data.active].tracks[2].steps
+      .filter(s => s.on)
+      .map(s => s.velocity),
+  );
+  expect(new Set(velocities)).toEqual(new Set([127]));
+  await mpk.press('play');
+});
+
+test('SHIFT + ARP opens Arp Config; PLUGIN/DAW closes it and stays in DAW mode', async ({page}) => {
+  await connect(page);
+  await mpk.press('arp', {shift: true});
+  await mpk.expectScreen(['Arp Config']);
+  expect((await mpk.state()).arp).toBe(false); // opening the config does not switch the arp on
+  await mpk.press('plugin-daw');
+  await mpk.expectScreen([await app.title(page), undefined, /^STOP /]);
+  expect((await mpk.state()).mode).toBe('daw');
+  await expect(page.locator('#performance-midi-hardware')).toContainText('MPK connected');
+});
+
+test('pitch wheel bends the playing note; the sustain pedal holds notes after the keys are released', async ({
+  page,
+}) => {
+  await connect(page);
+  await listenNotes(page);
+  await mpk.keyDown(60);
+  await mpk.pitchWheel(1);
+  await mpk.pitchWheel(0);
+  await expect.poll(() => heard(page)).toEqual(expect.arrayContaining(['bend:2.00', 'bend:0.00']));
+  await mpk.keyUp(60);
+  await expect.poll(() => synthNotes(page)).toEqual([]);
+  await mpk.sustainPedal(true);
+  await mpk.keyDown(62);
+  await mpk.keyUp(62);
+  await page.waitForTimeout(200);
+  expect(await synthNotes(page)).toEqual([62]);
+  await mpk.sustainPedal(false);
+  await expect.poll(() => synthNotes(page)).toEqual([]);
+});
