@@ -198,7 +198,11 @@ window.AfterhoursMPK = (() => {
           AfterhoursShell.getEngine('groove')
             .tempo()
             .set(Math.max(40, Math.min(240, AfterhoursGrooveApp.S.data.bpm + direction)));
-        else action(shift ? 'action.pattern-' + (direction > 0 ? 'next' : 'prev') : 'mpk.instrument', {direction});
+        else if (!shift && AfterhoursGrooveLive.keysArmed) {
+          // While keys record into a track, they must keep sounding like that track.
+          temporary = `Keys rec T${String(AfterhoursGrooveApp.S.selected + 1).padStart(2, '0')}`;
+          temporaryUntil = performance.now() + 1500;
+        } else action(shift ? 'action.pattern-' + (direction > 0 ? 'next' : 'prev') : 'mpk.instrument', {direction});
       }
       return true;
     }
