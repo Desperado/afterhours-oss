@@ -12,6 +12,12 @@ The native profile verifies the MPK identity and DAW port before sending display
 
 Device settings and learned mappings are saved on this Mac across song changes and restarts. Custom User Preset learning remains available; see [Guided learning for a custom User Preset](#guided-learning-for-a-custom-user-preset).
 
+## On-screen emulator
+
+Click **MPK emulator** below **Perform** in the sidebar to play an MPK without a USB controller. The floating widget follows you between views and shows the same display and pad feedback as the ready DAW profile. Use **Open in separate window** to move it to its own window and **Dock in Afterhours** to bring it back. Click the pads and keys, or scroll over a knob to turn it. **SHIFT** and **Hold encoder** stay pressed until you click them again.
+
+While the widget is open it takes over MIDI input. Closing it restores your previous USB MIDI input and releases the emulator's notes.
+
 ## Display and pads
 
 Three large 24-point rows show:

@@ -21,7 +21,8 @@ window.AfterhoursMPK = (() => {
     temporary = '',
     temporaryUntil = 0;
   let status = 'DAW profile off';
-  const enabled = () => P.store.state.midi.profile === 'mpk-mini-plus-ii' && P.store.state.midi.native;
+  const enabled = () => M.emulating || (P.store.state.midi.profile === 'mpk-mini-plus-ii' && P.store.state.midi.native);
+  const available = () => enabled() && (M.emulating || !document.hidden);
   const report = text => {
     if (status === text) return;
     status = text;
@@ -77,7 +78,7 @@ window.AfterhoursMPK = (() => {
     paint();
   }
   function refresh() {
-    const next = enabled() && !document.hidden ? M.outputs().find(Q.daw) : null;
+    const next = available() ? M.outputs(true).find(Q.daw) : null;
     const input = M.devices().find(Q.daw);
     if (!next || !input || next !== output || input.id !== inputId) {
       release();
@@ -106,7 +107,7 @@ window.AfterhoursMPK = (() => {
     }
   }
   function sysex(input, bytes) {
-    if (!enabled() || document.hidden || input.id !== inputId || !Q.daw(input)) return;
+    if (!available() || input.id !== inputId || !Q.daw(input)) return;
     try {
       if (Q.identity(bytes)) {
         verified = true;
@@ -138,7 +139,7 @@ window.AfterhoursMPK = (() => {
   function route(input, msg) {
     if (!enabled() || !Q.daw(input)) return false;
     // Consume DAW traffic even while waiting: it must never become a piano note.
-    if (!active || input.id !== inputId || document.hidden) return true;
+    if (!active || input.id !== inputId || !available()) return true;
     if (msg.channel === 9 && ['on', 'off'].includes(msg.type) && msg.note >= 36 && msg.note <= 51) {
       const id = 'mpk-pad:' + msg.note;
       if (msg.type === 'off') {
@@ -222,8 +223,11 @@ window.AfterhoursMPK = (() => {
       pressed.delete(cc);
       return true;
     }
-    if (pressed.has(cc)) return true;
-    pressed.add(cc);
+    // Loop, Play/Stop and Record send a press event without a matching release.
+    if (cc !== 74 && cc !== 76 && cc !== 77) {
+      if (pressed.has(cc)) return true;
+      pressed.add(cc);
+    }
     const binding = {
       73: shift ? 'redo' : 'undo',
       74: shift ? 'panic' : 'loop',
@@ -339,6 +343,7 @@ window.AfterhoursMPK = (() => {
     }
   });
   document.addEventListener('visibilitychange', () => {
+    if (M.emulating) return;
     if (document.hidden) release();
     else {
       verified = false;
@@ -346,11 +351,13 @@ window.AfterhoursMPK = (() => {
       refresh();
     }
   });
-  window.addEventListener('blur', releaseNotes);
+  window.addEventListener('blur', () => {
+    if (!M.emulating) releaseNotes();
+  });
   window.addEventListener('pagehide', release);
   setInterval(() => {
     try {
-      if (!enabled() || document.hidden) return;
+      if (!available()) return;
       if (!verified && output && attempts < 3 && performance.now() - lastInquiry > 2000) inquire();
       if (!verified && attempts === 3 && performance.now() - lastInquiry > 2000)
         report('MPK did not respond · check DAW mode and press “Enable”');

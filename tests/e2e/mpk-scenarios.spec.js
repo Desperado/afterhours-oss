@@ -171,7 +171,7 @@ test('SHIFT + BANK browses songs on the display; Play loads and starts the chose
   await mpk.expectScreen([await app.title(page)]);
 });
 
-test('Record captures a take; Play/Stop during playback stops the song and saves the take', async ({page}) => {
+test('Record captures two takes, with Play/Stop saving the first and Record saving the second', async ({page}) => {
   await connect(page);
   await mpk.press('record');
   await expect.poll(() => app.recording(page)).toBe(true);
@@ -183,6 +183,13 @@ test('Record captures a take; Play/Stop during playback stops the song and saves
   await expect.poll(() => app.recording(page)).toBe(false);
   await expect(page.locator('#performance-status')).toContainText('Take saved locally');
   await expect.poll(async () => (await mpk.light('record')).color).toBe(0);
+
+  await mpk.press('record');
+  await expect.poll(() => app.recording(page)).toBe(true);
+  await mpk.playKey(62, {ms: 200});
+  await mpk.press('record');
+  await expect.poll(() => app.recording(page)).toBe(false);
+  await expect(page.locator('#performance-status')).toContainText('Take saved locally');
 });
 
 test('pad bank B reaches tracks 9–16, both for playing and for selecting', async ({page}) => {
@@ -236,6 +243,8 @@ test('octave buttons shift the keys; Tap Tempo sets the tempo; Loop toggles the 
   const loop = await page.evaluate(() => AfterhoursGrooveApp.S.data.continuous);
   await mpk.press('loop');
   expect(await page.evaluate(() => AfterhoursGrooveApp.S.data.continuous)).toBe(!loop);
+  await mpk.press('loop');
+  expect(await page.evaluate(() => AfterhoursGrooveApp.S.data.continuous)).toBe(loop);
 });
 
 test('unplugging mid-song releases held notes; plugging back in restores the display', async ({page}) => {
@@ -296,15 +305,24 @@ test('CHORDS plays a triad from one key; SCALES snaps a wrong note into the scal
 test('ARP plays held notes one by one; LATCH keeps it going after the keys are released', async ({page}) => {
   await connect(page);
   await listenNotes(page);
+  await mpk.keyDown(60);
+  await expect.poll(() => synthNotes(page)).toEqual([60]);
   await mpk.press('arp');
+  await mpk.keyUp(60);
+  await expect.poll(() => synthNotes(page)).toEqual([]);
   await mpk.press('latch');
   for (const note of [60, 64, 67]) await mpk.keyDown(note);
   for (const note of [60, 64, 67]) await mpk.keyUp(note);
   // Released, but latched: the arpeggio keeps cycling upwards through the chord.
+  await page.evaluate(() => {
+    window.__heard.length = 0;
+  });
   await expect.poll(async () => (await heardNotes(page)).length, {timeout: 4000}).toBeGreaterThanOrEqual(6);
-  const notes = await heardNotes(page);
-  expect(new Set(notes)).toEqual(new Set([60, 64, 67]));
-  expect(notes.slice(0, 3)).toEqual([60, 64, 67]);
+  const notes = (await heardNotes(page)).slice(0, 6);
+  const chord = [60, 64, 67];
+  const offset = chord.indexOf(notes[0]);
+  expect(offset).toBeGreaterThanOrEqual(0);
+  expect(notes).toEqual(notes.map((_, index) => chord[(offset + index) % chord.length]));
   // Turning ARP off stops it and releases the last note.
   await mpk.press('arp');
   await expect.poll(() => synthNotes(page)).toEqual([]);

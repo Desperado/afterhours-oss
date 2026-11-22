@@ -410,10 +410,8 @@
     $('midi-status').textContent = e.detail;
   });
   window.addEventListener('afterhours:mididevices', () => {
-    const old = $('midi-input').value;
     $('midi-input').replaceChildren(option('*', 'All MIDI inputs'), ...M.devices().map(d => option(d.id, d.name)));
-    if (M.devices().some(d => d.id === old)) $('midi-input').value = old;
-    else M.select('*');
+    $('midi-input').value = M.selected;
   });
   let setupSignature = '',
     mappingSignature = '';

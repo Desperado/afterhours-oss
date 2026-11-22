@@ -96,7 +96,27 @@ else {
           webviewTag: false,
         },
       });
-      window.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
+      window.webContents.setWindowOpenHandler(({url, frameName}) => {
+        if (url !== 'about:blank' || frameName !== 'afterhours-mpk') return {action: 'deny'};
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            title: 'Afterhours · MPK mini Plus II',
+            width: 960,
+            height: 410,
+            minWidth: 360,
+            minHeight: 320,
+            useContentSize: true,
+            autoHideMenuBar: true,
+            backgroundColor: '#e9e7e3',
+          },
+        };
+      });
+      window.webContents.on('did-create-window', child => {
+        child.webContents.setWindowOpenHandler(() => ({action: 'deny'}));
+        for (const event of ['will-navigate', 'will-redirect'])
+          child.webContents.on(event, event => event.preventDefault());
+      });
       window.webContents.on('will-navigate', (event, url) => {
         if (url !== ORIGIN + '/') event.preventDefault();
       });

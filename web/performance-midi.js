@@ -9,6 +9,10 @@ window.AfterhoursLiveMIDI = (() => {
     pickup = new Map(),
     buttons = new Map();
   let access = null,
+    physicalAccess = null,
+    physicalSysex = false,
+    emulatorAccess = null,
+    physicalSelection = '*',
     learning = null,
     selected = '*',
     state = P.snapshot(),
@@ -238,7 +242,7 @@ window.AfterhoursLiveMIDI = (() => {
   function receive(input, bytes) {
     if (window.AfterhoursPerformanceStudio?.replaying) return;
     if (selected !== '*' && input.id !== selected) return;
-    const mpk = state.midi.profile === 'mpk-mini-plus-ii';
+    const mpk = emulatorAccess || state.midi.profile === 'mpk-mini-plus-ii';
     const name = deviceName(input);
     if (
       mpk &&
@@ -255,6 +259,11 @@ window.AfterhoursLiveMIDI = (() => {
     lastMessage = `${name} · ch ${msg.channel + 1} · ${msg.type} ${msg.cc ?? msg.note ?? msg.number ?? ''} ${msg.value ?? msg.velocity ?? ''}`;
     if (!learning && window.AfterhoursMPK?.route(input, msg)) return;
     if (!(msg.type === 'cc' && [64, 120, 121, 123].includes(msg.cc)) && route(input, msg)) return;
+    if (emulatorAccess && msg.type === 'cc' && msg.channel === 0 && msg.cc === 1) {
+      const motion = P.targets.get('synth.motion');
+      motion?.set(motion.min + (msg.value / 127) * (motion.max - motion.min));
+      return;
+    }
     // DAW controls are never piano notes, including before they have been learned.
     if (mpk && /\bdaw\b/i.test(name)) return;
     const group = prefix(input.id, msg.channel),
@@ -342,34 +351,56 @@ window.AfterhoursLiveMIDI = (() => {
     }
   }
   function refresh() {
-    if (!access) return;
-    for (const input of access.inputs.values()) {
+    const inputs = [...(access?.inputs.values() || [])];
+    for (const input of inputs) {
       input.onmidimessage = e => receive(input, e.data);
       if (input.state !== 'connected') releaseDevice(input.id);
     }
-    const connected = new Set([...access.inputs.values()].filter(i => i.state === 'connected').map(i => i.id));
+    const connected = new Set(inputs.filter(i => i.state === 'connected').map(i => i.id));
     for (const v of [...voices.values()]) if (!connected.has(v.device)) releaseDevice(v.device);
+    if (selected !== '*' && !connected.has(selected)) selected = '*';
     window.dispatchEvent(new Event('afterhours:mididevices'));
   }
-  let sysexAllowed = false;
+  function useAccess(next) {
+    if (next !== access) {
+      for (const input of access?.inputs.values() || []) input.onmidimessage = null;
+      releaseDevice();
+      cancelLearning();
+      access = next;
+    }
+    refresh();
+  }
+  function useEmulator(next) {
+    if (next === emulatorAccess) return;
+    if (emulatorAccess) emulatorAccess.onstatechange = null;
+    else physicalSelection = selected;
+    emulatorAccess = next;
+    if (next) next.onstatechange = refresh;
+    selected = next ? '*' : physicalSelection;
+    useAccess(next || physicalAccess);
+  }
   async function connect() {
+    if (emulatorAccess) return;
     if (!navigator.requestMIDIAccess) throw new Error('USB MIDI needs the desktop app or a browser with Web MIDI.');
     // SysEx is only needed for the MPK's display and lights; without that permission, plain MIDI still works.
+    let next, sysex;
     try {
-      access = await navigator.requestMIDIAccess({sysex: true});
-      sysexAllowed = true;
+      next = await navigator.requestMIDIAccess({sysex: true});
+      sysex = true;
     } catch {
-      access = await navigator.requestMIDIAccess();
-      sysexAllowed = false;
+      next = await navigator.requestMIDIAccess();
+      sysex = false;
     }
-    access.onstatechange = refresh;
-    refresh();
+    if (physicalAccess && physicalAccess !== next) physicalAccess.onstatechange = null;
+    physicalAccess = next;
+    physicalSysex = sysex;
+    physicalAccess.onstatechange = refresh;
+    useAccess(emulatorAccess || physicalAccess);
     notify(
-      sysexAllowed
+      physicalSysex
         ? 'MIDI connected · keys play Synth; right-click a knob to Learn'
         : 'MIDI connected without SysEx permission · keys and Learn work; the MPK display and lights are unavailable',
     );
-    window.dispatchEvent(new Event('afterhours:mididevices'));
   }
   P.store.subscribe((next, reason) => {
     const previousProfile = state.midi.profile;
@@ -390,8 +421,12 @@ window.AfterhoursLiveMIDI = (() => {
   });
   return {
     connect,
+    useEmulator,
+    get emulating() {
+      return !!emulatorAccess;
+    },
     get sysex() {
-      return sysexAllowed;
+      return !!emulatorAccess || physicalSysex;
     },
     receive,
     learn,
@@ -406,7 +441,12 @@ window.AfterhoursLiveMIDI = (() => {
     get lastMessage() {
       return lastMessage;
     },
-    outputs: () => (access ? [...access.outputs.values()].filter(o => o.state === 'connected') : []),
+    outputs(activeOnly = false) {
+      const ports = [...(access?.outputs.values() || [])];
+      // Keep an existing hardware clock output available while playing the emulator.
+      if (!activeOnly && emulatorAccess && physicalAccess) ports.push(...physicalAccess.outputs.values());
+      return ports.filter(o => o.state === 'connected');
+    },
     release: releaseDevice,
     devices: () =>
       access
@@ -416,6 +456,9 @@ window.AfterhoursLiveMIDI = (() => {
       releaseDevice();
       selected = id;
       pickup.clear();
+    },
+    get selected() {
+      return selected;
     },
     cancel: () => {
       cancelLearning();
