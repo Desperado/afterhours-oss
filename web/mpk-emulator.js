@@ -66,7 +66,7 @@ window.createAfterhoursMPKEmulator = () => {
   const emit = (id, bytes) => {
     if (!state.plugged) return;
     const input = inputs.get(id);
-    input.onmidimessage?.({data: Uint8Array.from(bytes)});
+    return input.onmidimessage?.({data: Uint8Array.from(bytes)});
   };
   // Firmware → host SysEx uses the 0x7F device byte, as the Bitwig driver expects.
   const sysex = (command, payload = []) => [
@@ -185,6 +185,12 @@ window.createAfterhoursMPKEmulator = () => {
     while (!MAJOR.includes(((note % 12) + 12) % 12)) note--;
     return note;
   };
+  // Keep the pitch class playable when the octave shift exceeds the MIDI range.
+  const midiPitch = note => {
+    if (note > 127) return note - 12 * Math.ceil((note - 127) / 12);
+    if (note < 0) return note + 12 * Math.ceil(-note / 12);
+    return note;
+  };
   // SHIFT functions as printed on the Plus II panel (they differ from the mini IV guide):
   // ARP / CONFIG, LATCH / FREEZE, CHORDS / CONFIG, SCALES / CONFIG, NOTE REPEAT / FULL LEVEL.
   const CONFIG = {arp: 'Arp Config', chords: 'Chord Config', scales: 'Scale Config'};
@@ -256,7 +262,7 @@ window.createAfterhoursMPKEmulator = () => {
       if (state.mode !== 'preset') cc(CC.shift, down ? 127 : 0);
     },
     // pad: 1–8 on the current physical bank, or 'A1'…'B8' (switching the bank first, as a player would).
-    padDown(pad, velocity = 100) {
+    padDown(pad, velocity = 100, onAttack) {
       let index = pad;
       if (typeof pad === 'string') {
         const bank = pad[0].toUpperCase() === 'B' ? 1 : 0;
@@ -274,7 +280,8 @@ window.createAfterhoursMPKEmulator = () => {
       // Akai guide: Full Level sends every pad at 127.
       if (state.fullLevel) velocity = 127;
       pressedPads.set(note, padPort);
-      emit(padPort, [0x99, note, velocity]);
+      const attack = emit(padPort, [0x99, note, velocity]);
+      onAttack?.(attack);
       // Note Repeat retriggers a held pad at 1/16 of the firmware tempo.
       if (state.repeat && !state.shift) {
         clearInterval(repeats.get(note));
@@ -342,7 +349,7 @@ window.createAfterhoursMPKEmulator = () => {
       if (!state.plugged || held.has(note)) return;
       let played = note + state.octave * 12;
       if (state.scales) played = snap(played);
-      const notes = (state.chords ? [played, played + 4, played + 7] : [played]).filter(n => n >= 0 && n <= 127);
+      const notes = (state.chords ? [played, played + 4, played + 7] : [played]).map(midiPitch);
       const arp = state.arp;
       // With Latch, a new chord replaces the latched one once every key had been released.
       if (arp && state.latch && !held.size) state.arpNotes = [];
@@ -353,7 +360,7 @@ window.createAfterhoursMPKEmulator = () => {
         if (state.arpClock === 'internal' && !arpTimer) arpRun();
         return;
       }
-      for (const n of attacks) emit('mpk-midi', [0x90, n, velocity]);
+      return Promise.all(attacks.map(n => emit('mpk-midi', [0x90, n, velocity])));
     },
     keyUp(note) {
       const key = held.get(note);

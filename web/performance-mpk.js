@@ -174,7 +174,7 @@ window.AfterhoursMPK = (createController => {
         action('mpk.select-lane.' + (msg.note - 36));
       } else if (P.store.state.midi.padMode === 'notes') {
         notes.add(id);
-        AfterhoursSynth.midiOn(id, msg.note, msg.velocity).catch(error => report(error.message));
+        return AfterhoursSynth.midiOn(id, msg.note, msg.velocity).catch(error => report(error.message));
       } else {
         const {padMode, pads} = P.store.state.midi;
         if (['drums', 'beat'].includes(padMode)) {

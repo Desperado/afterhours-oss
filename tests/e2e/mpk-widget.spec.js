@@ -152,13 +152,93 @@ test('the emulator clock menu applies External and clears scheduled ticks on MID
     await wait(50);
     const play = notes.splice(0);
     for (let i = 0; i < 12; i++) out.send([0xf8], performance.now() + 50);
+    out.clear();
+    await wait(100);
+    const cleared = notes.splice(0);
+    for (let i = 0; i < 12; i++) out.send([0xf8], performance.now() + 50);
     out.send([0xfc]);
     await wait(100);
     const stop = notes.splice(0);
     mpk.dispose();
-    return {pitches, play, stop};
+    return {pitches, play, cleared, stop};
   });
-  expect(result).toEqual({pitches: [67, 71, 74], play: [[0x90, 67, 100]], stop: [[0x80, 67, 0]]});
+  expect(result).toEqual({pitches: [67, 71, 74], play: [[0x90, 67, 100]], cleared: [], stop: [[0x80, 67, 0]]});
+});
+
+test('the emulator keeps extreme octave shifts playable and shared scale notes held', async ({page}) => {
+  await page.goto('/');
+  const messages = await page.evaluate(() => {
+    const mpk = createAfterhoursMPKEmulator();
+    const notes = [];
+    mpk.access.inputs.get('mpk-midi').onmidimessage = ({data}) => notes.push([...data]);
+    for (let i = 0; i < 4; i++) mpk.button('oct+');
+    mpk.button('chords');
+    mpk.keyDown(84);
+    mpk.button('oct-');
+    mpk.keyUp(84);
+    for (let i = 0; i < 3; i++) mpk.button('oct-');
+    mpk.button('chords');
+    mpk.button('scales');
+    mpk.keyDown(60);
+    mpk.keyDown(61);
+    mpk.keyUp(60);
+    mpk.keyUp(61);
+    mpk.dispose();
+    return notes;
+  });
+  expect(messages).toEqual([
+    [0x90, 120, 100],
+    [0x90, 124, 100],
+    [0x90, 127, 100],
+    [0x80, 120, 0],
+    [0x80, 124, 0],
+    [0x80, 127, 0],
+    [0x90, 60, 100],
+    [0x80, 60, 0],
+  ]);
+});
+
+test('keyboard and assistive MPK presses play even when audio preparation is slow', async ({page}) => {
+  await page.goto('/');
+  await page.getByRole('button', {name: 'MPK emulator', exact: true}).click();
+  const widget = page.getByRole('region', {name: 'MPK mini Plus II emulator'});
+  await page.evaluate(() => {
+    AfterhoursPerformance.store.update(state => {
+      state.midi.padMode = 'notes';
+    }, 'midi-profile');
+    window.playedNotes = [];
+    const event = AfterhoursPerformance.event;
+    AfterhoursPerformance.event = (type, value) => {
+      if (type === 'noteOn') window.playedNotes.push(value.note);
+      event(type, value);
+    };
+  });
+  const played = () => page.evaluate(() => window.playedNotes);
+  const key = widget.getByRole('button', {name: 'C4', exact: true});
+  const pad = widget.getByRole('button', {name: 'Pad A1', exact: true});
+  for (const [pitch, activate] of [
+    [60, () => key.press('Enter')],
+    [36, () => pad.dispatchEvent('click', {detail: 0})],
+  ]) {
+    await page.evaluate(() => {
+      const audio = AfterhoursAudio.context();
+      const resume = audio.resume;
+      const gate = new Promise(resolve => {
+        window.finishAudioPreparation = () => {
+          audio.resume = resume;
+          resolve();
+        };
+      });
+      audio.resume = () => gate.then(() => resume.call(audio));
+    });
+    await activate();
+    await page.waitForTimeout(220);
+    expect(await heldNotes(page)).toEqual([pitch]);
+    expect(await played()).not.toContain(pitch);
+    await page.evaluate(() => window.finishAudioPreparation());
+    await expect.poll(played).toContain(pitch);
+    await expect.poll(() => heldNotes(page)).toEqual([]);
+  }
 });
 
 test('the sidebar opens the MPK widget and its controls keep working in a separate window', async ({page}) => {
@@ -189,10 +269,10 @@ test('the sidebar opens the MPK widget and its controls keep working in a separa
   await widget.getByRole('button', {name: 'Play / Stop'}).click();
   await expect(widget.locator('.screen')).toContainText('STOP');
 
-  const secondPopup = await detach();
-  await secondPopup.getByRole('button', {name: 'Sustain', exact: true}).click();
-  await secondPopup.getByRole('button', {name: 'C4', exact: true}).press('Space');
+  await widget.getByRole('button', {name: 'Sustain', exact: true}).click();
+  await widget.getByRole('button', {name: 'C4', exact: true}).press('Space');
   await expect.poll(() => heldNotes(page)).toHaveLength(1);
+  const secondPopup = await detach();
   await page.evaluate(() => window.dispatchEvent(new Event('blur')));
   await secondPopup.getByRole('button', {name: 'D4', exact: true}).press('Enter');
   await expect.poll(() => heldNotes(page)).toEqual([60, 62]);

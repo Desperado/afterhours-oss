@@ -91,24 +91,29 @@ window.mountAfterhoursMPKView = (mpk, {onClose} = {}) => {
   const momentary = (control, down, up) => {
     let pointer = null,
       keyboard = false,
-      started = null,
+      press = null,
       timer;
     const end = () => {
       clearTimeout(timer);
-      if (started !== null) up();
-      started = null;
+      if (press) up();
+      press = null;
       keyboard = false;
       pointer = null;
     };
     const begin = () => {
       end();
-      started = performance.now();
-      down();
+      press = Promise.resolve(down()).then(
+        () => performance.now(),
+        () => -Infinity,
+      );
     };
-    // Short keyboard activations need time for Synth to prepare its audio voice.
+    // A short activation needs time to sound after the voice has started.
     const releaseKey = () => {
       keyboard = false;
-      timer = setTimeout(end, Math.max(0, 180 - (performance.now() - started)));
+      const released = press;
+      released.then(started => {
+        if (press === released) timer = setTimeout(end, Math.max(0, 180 - (performance.now() - started)));
+      });
     };
     const activation = e => e.key === 'Enter' || e.key === ' ';
     endPresses.push(end);
@@ -224,7 +229,11 @@ window.mountAfterhoursMPKView = (mpk, {onClose} = {}) => {
     let note = null;
     momentary(
       pad,
-      () => (note = mpk.padDown(index)),
+      () => {
+        let ready;
+        note = mpk.padDown(index, undefined, attack => (ready = attack));
+        return ready;
+      },
       () => mpk.padUp(note),
     );
     pads.append(pad);

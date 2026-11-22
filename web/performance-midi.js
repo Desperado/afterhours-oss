@@ -259,7 +259,8 @@ window.AfterhoursLiveMIDI = (() => {
     const msg = Core.midi(bytes);
     if (!msg) return;
     lastMessage = `${name} · ch ${msg.channel + 1} · ${msg.type} ${msg.cc ?? msg.note ?? msg.number ?? ''} ${msg.value ?? msg.velocity ?? ''}`;
-    if ((transportOnly || !learning) && window.AfterhoursMPK?.route(input, msg, emulated)) return;
+    const handled = (transportOnly || !learning) && window.AfterhoursMPK?.route(input, msg, emulated);
+    if (handled) return handled;
     if (transportOnly) return;
     if (!(msg.type === 'cc' && [64, 120, 121, 123].includes(msg.cc)) && route(input, msg)) return;
     if (emulatorAccess && msg.type === 'cc' && msg.channel === 0 && msg.cc === 1) {
@@ -276,7 +277,7 @@ window.AfterhoursLiveMIDI = (() => {
       if (voices.has(id)) AfterhoursSynth.off(id);
       const voice = {device: input.id, group, note: msg.note, released: false};
       voices.set(id, voice);
-      AfterhoursSynth.midiOn(id, msg.note, msg.velocity).then(press => {
+      return AfterhoursSynth.midiOn(id, msg.note, msg.velocity).then(press => {
         if (press && voices.get(id) === voice)
           for (const [type, value] of [
             ['bend', bends.get(group) || 0],
