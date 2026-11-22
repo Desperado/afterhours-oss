@@ -11,6 +11,7 @@
    update this file when hardware disagrees. */
 
 const {expect} = require('@playwright/test');
+const {mpkView} = require('./mpk-view');
 
 // Runs inside the page before any app script.
 function emulator() {
@@ -207,6 +208,7 @@ function emulator() {
       for (let i = 0; i < Math.abs(steps); i++) cc(CC.encoder, steps > 0 ? 1 : 127);
     },
     encoderPush(down) {
+      state.encoderDown = down;
       if (state.menu) return;
       cc(CC.encoderPush, down ? 127 : 0);
     },
@@ -243,8 +245,10 @@ class MPK {
   constructor(page) {
     this.page = page;
   }
-  static async install(page, {sysex = true} = {}) {
+  // view: draw the controller on the page (also MPK_VIEW=1), to watch or record a scenario.
+  static async install(page, {sysex = true, view = process.env.MPK_VIEW === '1'} = {}) {
     await page.addInitScript(emulator);
+    if (view) await page.addInitScript(mpkView);
     if (!sysex) await page.addInitScript(() => (window.__mpk.state.sysexAllowed = false));
     return new MPK(page);
   }

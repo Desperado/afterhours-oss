@@ -146,6 +146,8 @@ What it emulates:
 - **Firmware:** `SHIFT` + pads 5–8 open and close the Prog/Chord menus, which take over the screen and the encoder; closing one asks the host to redraw.
 - **Feedback:** the three display lines Afterhours writes, screen ownership and the pad and button lights with their animation.
 
+To watch it, draw the controller on the page: `MPK.install(page, {view: true})`, or run any MPK test with `MPK_VIEW=1`. The drawn MPK shows the display, pad and button colours, held keys, `SHIFT` labels, the mode and the screen owner, and it can be played with the mouse: click pads, keys and buttons, and scroll on knobs and the encoder. `MPK_SHOWCASE=1 npx playwright test mpk-showcase` records a walkthrough as frames and a video in `test-results/mpk-showcase/`.
+
 The protocol follows Bitwig's MPK driver and Akai's user guide. Behaviour that neither source states is marked `ASSUMPTION` in the file. When the real controller behaves differently, change the emulator first, then the app. `tests/e2e/mpk-scenarios.spec.js` holds the end-to-end scenarios.
 
 ### What the unit tests cover

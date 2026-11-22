@@ -78,6 +78,10 @@ test('build a song from scratch using only the controller after New song', async
   // SHIFT + Record arms the keys; the display says KEYS and Record lights steadily.
   await mpk.press('record', {shift: true});
   await mpk.expectScreen([undefined, undefined, /^KEYS /]);
+  // The keys now play the bass track's sound; the display names it rather than "undefined".
+  // (The track name shown on selection fades after two seconds.)
+  await expect.poll(async () => (await mpk.screen())[1]).not.toMatch(/^T\d\d /);
+  expect((await mpk.screen())[1]).toMatch(/^(?!undefined$)\S/);
   expect(await app.recording(page)).toBe(false);
   for (const note of [36, 39, 43]) await mpk.playKey(note, {ms: 260});
   await expect.poll(() => app.steps(page, 4)).toBeGreaterThan(0);
