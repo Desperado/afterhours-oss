@@ -28,10 +28,36 @@
   $('native-off').addEventListener('click', () => update('native', false));
   const hardwareStatus = () => {
     $('hardware').textContent =
-      window.AfterhoursMPK.status + (P.deviceSaved ? ' · Saved on this Mac' : ' · Could not save the profile');
+      window.AfterhoursMPK.status +
+      (M.emulating ? '' : P.deviceSaved ? ' · Saved on this Mac' : ' · Could not save the profile');
   };
   window.addEventListener('afterhours:mpkstatus', hardwareStatus);
   hardwareStatus();
+  const mpkToggle = document.getElementById('mpk-toggle');
+  const emulatorButtons = [mpkToggle, $('emulator')];
+  const expandEmulator = open => {
+    for (const button of emulatorButtons) button.setAttribute('aria-expanded', String(open));
+  };
+  let closeEmulator;
+  function toggleEmulator(event) {
+    if (closeEmulator) return closeEmulator(event.currentTarget);
+    const launcher = event.currentTarget;
+    const emulator = window.createAfterhoursMPKEmulator();
+    const unmount = window.mountAfterhoursMPKView(emulator, {
+      onClose: () => closeEmulator(launcher),
+    });
+    closeEmulator = button => {
+      M.useEmulator(null);
+      emulator.dispose();
+      unmount();
+      closeEmulator = null;
+      expandEmulator(false);
+      (button.getClientRects().length ? button : mpkToggle).focus();
+    };
+    expandEmulator(true);
+    M.useEmulator(emulator.access);
+  }
+  for (const button of emulatorButtons) button.addEventListener('click', toggleEmulator);
   const userMode = () => update('native', false);
   $('profile').addEventListener('change', () => {
     update('profile', $('profile').value);
@@ -329,6 +355,7 @@
     }
   });
   window.addEventListener('afterhours:mididevices', () => {
+    hardwareStatus();
     const previous = $('clock').value;
     const outputs = M.outputs();
     $('clock').replaceChildren(

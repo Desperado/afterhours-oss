@@ -22,7 +22,9 @@
     "desktop:public": "electron . --public-content",
     "desktop:dist:public": "node desktop/build.cjs --public",
     "desktop:pack:public": "node desktop/build.cjs --public --dir",
-    "test:private": "playwright test --config playwright.private.config.js"
+    "test:private": "playwright test --config playwright.private.config.js",
+    "demo:mpk": "playwright test --config playwright.mpk-demo.config.js",
+    "play:mpk": "MPK_PLAYGROUND=1 playwright test --config playwright.mpk-demo.config.js"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",

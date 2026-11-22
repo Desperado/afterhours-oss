@@ -1,6 +1,19 @@
 'use strict';
 // Native DAW controls and feedback are separate from custom User Preset MIDI Learn.
-window.AfterhoursMPK = (() => {
+window.AfterhoursMPK = (createController => {
+  const usb = createController(false),
+    virtual = createController(true);
+  const controller = emulated => (emulated ? virtual : usb);
+  const current = () => controller(AfterhoursLiveMIDI.emulating);
+  return {
+    sysex: (input, bytes, emulated) => controller(emulated).sysex(input, bytes),
+    route: (input, msg, emulated) => controller(emulated).route(input, msg),
+    reconnect: () => usb.reconnect(),
+    get status() {
+      return current().status;
+    },
+  };
+})(emulated => {
   const P = AfterhoursPerformance,
     M = AfterhoursLiveMIDI,
     Q = AfterhoursMPKProtocol;
@@ -21,7 +34,10 @@ window.AfterhoursMPK = (() => {
     temporary = '',
     temporaryUntil = 0;
   let status = 'DAW profile off';
-  const enabled = () => P.store.state.midi.profile === 'mpk-mini-plus-ii' && P.store.state.midi.native;
+  let transportOnly = false;
+  const enabled = () =>
+    emulated ? M.emulating : P.store.state.midi.profile === 'mpk-mini-plus-ii' && P.store.state.midi.native;
+  const available = () => enabled() && (M.emulating || !document.hidden);
   const report = text => {
     if (status === text) return;
     status = text;
@@ -77,8 +93,11 @@ window.AfterhoursMPK = (() => {
     paint();
   }
   function refresh() {
-    const next = enabled() && !document.hidden ? M.outputs().find(Q.daw) : null;
-    const input = M.devices().find(Q.daw);
+    const restricted = !emulated && M.emulating;
+    if (restricted !== transportOnly) releaseNotes();
+    transportOnly = restricted;
+    const {input, output: port, sysex} = M.mpkPorts(emulated);
+    const next = available() ? port : null;
     if (!next || !input || next !== output || input.id !== inputId) {
       release();
       output = next || null;
@@ -89,7 +108,7 @@ window.AfterhoursMPK = (() => {
     }
     if (!enabled()) return report('DAW profile off');
     if (!output || !inputId) return report('Waiting for MPK mini Plus II · connect USB');
-    if (!M.sysex)
+    if (!sysex)
       return report(
         'No SysEx permission · MPK display and lights unavailable. Allow SysEx for MIDI and press “Enable” again.',
       );
@@ -106,7 +125,7 @@ window.AfterhoursMPK = (() => {
     }
   }
   function sysex(input, bytes) {
-    if (!enabled() || document.hidden || input.id !== inputId || !Q.daw(input)) return;
+    if (!available() || input.id !== inputId || !Q.daw(input)) return;
     try {
       if (Q.identity(bytes)) {
         verified = true;
@@ -138,9 +157,10 @@ window.AfterhoursMPK = (() => {
   function route(input, msg) {
     if (!enabled() || !Q.daw(input)) return false;
     // Consume DAW traffic even while waiting: it must never become a piano note.
-    if (!active || input.id !== inputId || document.hidden) return true;
+    if (!active || input.id !== inputId || !available()) return true;
+    if (transportOnly && !(msg.type === 'cc' && msg.channel === 0 && [17, 74, 76, 77].includes(msg.cc))) return true;
     if (msg.channel === 9 && ['on', 'off'].includes(msg.type) && msg.note >= 36 && msg.note <= 51) {
-      const id = 'mpk-pad:' + msg.note;
+      const id = (emulated ? 'mpk-emulator-pad:' : 'mpk-pad:') + msg.note;
       if (msg.type === 'off') {
         notes.delete(id);
         AfterhoursSynth.off(id);
@@ -154,7 +174,7 @@ window.AfterhoursMPK = (() => {
         action('mpk.select-lane.' + (msg.note - 36));
       } else if (P.store.state.midi.padMode === 'notes') {
         notes.add(id);
-        AfterhoursSynth.midiOn(id, msg.note, msg.velocity).catch(error => report(error.message));
+        return AfterhoursSynth.midiOn(id, msg.note, msg.velocity).catch(error => report(error.message));
       } else {
         const {padMode, pads} = P.store.state.midi;
         if (['drums', 'beat'].includes(padMode)) {
@@ -222,8 +242,11 @@ window.AfterhoursMPK = (() => {
       pressed.delete(cc);
       return true;
     }
-    if (pressed.has(cc)) return true;
-    pressed.add(cc);
+    // Loop, Play/Stop and Record send a press event without a matching release.
+    if (cc !== 74 && cc !== 76 && cc !== 77) {
+      if (pressed.has(cc)) return true;
+      pressed.add(cc);
+    }
     const binding = {
       73: shift ? 'redo' : 'undo',
       74: shift ? 'panic' : 'loop',
@@ -339,6 +362,7 @@ window.AfterhoursMPK = (() => {
     }
   });
   document.addEventListener('visibilitychange', () => {
+    if (M.emulating) return;
     if (document.hidden) release();
     else {
       verified = false;
@@ -346,11 +370,13 @@ window.AfterhoursMPK = (() => {
       refresh();
     }
   });
-  window.addEventListener('blur', releaseNotes);
+  window.addEventListener('blur', () => {
+    if (!emulated && !transportOnly) releaseNotes();
+  });
   window.addEventListener('pagehide', release);
   setInterval(() => {
     try {
-      if (!enabled() || document.hidden) return;
+      if (!available()) return;
       if (!verified && output && attempts < 3 && performance.now() - lastInquiry > 2000) inquire();
       if (!verified && attempts === 3 && performance.now() - lastInquiry > 2000)
         report('MPK did not respond · check DAW mode and press “Enable”');
@@ -363,11 +389,10 @@ window.AfterhoursMPK = (() => {
       fail(error);
     }
   }, 100);
-  if (enabled()) M.connect().catch(fail);
+  if (!emulated && enabled()) M.connect().catch(fail);
   return {
     sysex,
     route,
-    release,
     reconnect: () => {
       release();
       verified = false;
@@ -378,4 +403,4 @@ window.AfterhoursMPK = (() => {
       return status;
     },
   };
-})();
+});

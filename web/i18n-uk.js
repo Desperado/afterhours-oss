@@ -188,6 +188,21 @@
       'Підключи USB, увімкни DAW-режим на MPK і натисни «Увімкнути готовий DAW-профіль». Призначення, дисплей і світло налаштуються автоматично та збережуться на цьому Mac. Для зміненого User Preset доступне окреме навчання.',
     'Enable ready DAW profile': 'Увімкнути готовий DAW-профіль',
     'Disable DAW profile': 'Вимкнути DAW-профіль',
+    'Open MPK emulator': 'Відкрити емулятор MPK',
+    'MPK emulator': 'Емулятор MPK',
+    'MPK mini Plus II emulator': 'Емулятор MPK mini Plus II',
+    Emulator: 'Емулятор',
+    'Close emulator': 'Закрити емулятор',
+    'Open in separate window': 'В окреме вікно',
+    'Dock in Afterhours': 'Повернути в Afterhours',
+    'Could not open the MPK window. Allow pop-ups for this site and try again.':
+      'Не вдалося відкрити вікно MPK. Дозволь спливні вікна для цього сайту й спробуй ще раз.',
+    'Play the pads and keys. Scroll or use the arrow keys to turn a control. Hold the encoder and press a pad to select a track.':
+      'Грай на педах і клавішах. Прокручуй колесо миші або натискай стрілки, щоб крутити регулятори. Утримуй енкодер і натисни пед, щоб вибрати трек.',
+    'Central encoder': 'Центральний енкодер',
+    'Hold encoder': 'Утримувати енкодер',
+    Sustain: 'Сустейн',
+    'Play / Stop': 'Відтворення / стоп',
     'Learn my own User Preset': 'Навчити власний User Preset',
     'Learn the remaining buttons': 'Навчити решту кнопок',
     'Select DAW mode on the MPK, then the ready profile. Display: song, your instrument, tempo and knob bank. Pads: track colour, mute and activity. Play, Record, Loop and Tap show their state. PAD BANK A/B switches the physical bank; it is not a pad.':
