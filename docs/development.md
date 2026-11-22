@@ -124,6 +124,30 @@ Good to know:
 - One worker avoids two app instances competing for that port.
 - The Node wrapper discovers every top-level `tests/*.test.js` file, including the instrument-loader concurrency, retry and memory-budget checks.
 
+### MPK mini Plus II emulator
+
+`tests/e2e/helpers/mpk-emulator.js` emulates the controller, so a test plays the device as a person would and checks what that person would see:
+
+```js
+const {MPK} = require('./helpers/mpk-emulator');
+const mpk = await MPK.install(page); // before page.goto
+await mpk.holdEncoder(() => mpk.pad(5)); // select track 5
+await mpk.press('record', {shift: true}); // record keys
+await mpk.playKey(36, {ms: 250});
+await mpk.expectScreen([undefined, undefined, /^KEYS /]);
+expect((await mpk.light('record')).color).toBe(127);
+```
+
+What it emulates:
+
+- **Ports:** MIDI, DAW and Plugin ports, identity reply, SysEx permission, unplugging and plugging back in.
+- **Modes:** DAW, Plugin (PLUGIN/DAW) and User Presets (`SHIFT` + PLUGIN/DAW). Controls go to the port of the current mode, and the mode change is announced as the hardware does.
+- **Controls:** keys with octave shift, pads on banks A/B with velocity, relative knobs and encoder, encoder push, `SHIFT` and every transport and bank button.
+- **Firmware:** `SHIFT` + pads 5–8 open and close the Prog/Chord menus, which take over the screen and the encoder; closing one asks the host to redraw.
+- **Feedback:** the three display lines Afterhours writes, screen ownership and the pad and button lights with their animation.
+
+The protocol follows Bitwig's MPK driver and Akai's user guide. Behaviour that neither source states is marked `ASSUMPTION` in the file. When the real controller behaves differently, change the emulator first, then the app. `tests/e2e/mpk-scenarios.spec.js` holds the end-to-end scenarios.
+
 ### What the unit tests cover
 
 Tests cover local access rules, byte-range playback, bounded imports, key redaction, explicit analysis submission, job concurrency, local report persistence and partial whole-track recovery. Audio API requests are mocked in tests.

@@ -156,15 +156,20 @@ window.AfterhoursMPKControls = (() => {
     return 'synth.' + key;
   }
   const target = (bank, i) => P.targets.get(targetId(bank, i));
+  // Part of a turn that a control's own rounding swallowed. On-screen knobs round to their step
+  // (0.01 for macros), so a SHIFT (fine) tick of 1/508 would otherwise never move them.
+  const residue = new WeakMap();
   function turn(t, delta, fine = false) {
     if (!t || !delta || window.AfterhoursPerformanceStudio?.replaying) return;
     const amount = (delta * (t.max - t.min)) / (fine ? 508 : 127);
-    t.set(
-      Math.max(
-        t.min,
-        Math.min(t.max, t.get() + (t.step ? Math.sign(delta) * Math.max(t.step, Math.abs(amount)) : amount)),
-      ),
-    );
+    if (t.step) {
+      t.set(Math.max(t.min, Math.min(t.max, t.get() + Math.sign(delta) * Math.max(t.step, Math.abs(amount)))));
+      return;
+    }
+    const carried = Math.sign(residue.get(t) || 0) === Math.sign(delta) ? residue.get(t) : 0;
+    const wanted = Math.max(t.min, Math.min(t.max, t.get() + amount + carried));
+    t.set(wanted);
+    residue.set(t, wanted - t.get());
   }
   const format = t => {
     const value = t.get();
