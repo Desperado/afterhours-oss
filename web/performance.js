@@ -1415,7 +1415,8 @@
           S.getEngine('groove').start();
           break;
         case 'action.record':
-          if (recording) await finishRecording();
+          // A second press while the take is still starting stops it, rather than being ignored.
+          if (recording || startingTake) await stopTake();
           else await startRecording();
           break;
         case 'action.undo':

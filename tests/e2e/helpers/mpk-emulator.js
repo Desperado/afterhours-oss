@@ -286,8 +286,13 @@ function emulator() {
     },
     knob(index, steps) {
       if (state.mode === 'preset') {
-        knobValues[index - 1] = Math.max(0, Math.min(127, knobValues[index - 1] + steps));
-        emit('mpk-midi', [0xb0, 69 + index, knobValues[index - 1]]);
+        // A real knob sends every value it passes through, not just where it stops.
+        for (let i = 0; i < Math.abs(steps); i++) {
+          const next = Math.max(0, Math.min(127, knobValues[index - 1] + Math.sign(steps)));
+          if (next === knobValues[index - 1]) break;
+          knobValues[index - 1] = next;
+          emit('mpk-midi', [0xb0, 69 + index, next]);
+        }
         return;
       }
       const one = Math.sign(steps);
