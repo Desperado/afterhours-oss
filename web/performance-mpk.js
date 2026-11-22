@@ -234,6 +234,11 @@ window.AfterhoursMPK = (() => {
     if (binding) action('action.' + binding);
     return true;
   }
+  // A sound taken from a Groove track has no patch name of its own; show the track's name instead.
+  function instrumentName() {
+    const patch = AfterhoursSynth.snapshot();
+    return patch.name || patch.track?.name || patch.track?.machine || 'Synth';
+  }
   function paint() {
     if (!active) return;
     const state = P.store.state,
@@ -257,7 +262,7 @@ window.AfterhoursMPK = (() => {
             ? temporary
             : shift || state.midi.knobBank.startsWith('track-')
               ? trackLabel
-              : AfterhoursSynth.snapshot().name,
+              : instrumentName(),
       ),
     );
     once(
