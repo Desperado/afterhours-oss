@@ -360,12 +360,12 @@ test('scene pads with no saved scenes, and mixer level knobs, are safe and visib
 test('browsing many songs quickly and pressing Play loads exactly the one on the display', async ({page}) => {
   for (let i = 0; i < 7; i++) await mpk.press('bank+', {shift: true});
   await mpk.press('bank-', {shift: true});
-  await expect.poll(async () => (await mpk.screen())[0]).toMatch(/^> /);
-  const shown = (await mpk.screen())[0].replace(/^> /, '');
+  // The display repaints every 100 ms; wait until it shows the song that is actually selected.
+  const chosen = await page.evaluate(() => AfterhoursSongWorkflow.pending);
+  await expect.poll(async () => (await mpk.screen())[0]).toBe(`> ${chosen}`.slice(0, 20).trim());
   await mpk.press('play');
   await expect.poll(() => live.running(page)).toBe(true);
-  // The display transliterates and trims to 20 characters.
-  expect((await live.title(page)).slice(0, 20).trim()).toBe(shown);
+  expect(await live.title(page)).toBe(chosen);
   await stop(page);
 });
 
